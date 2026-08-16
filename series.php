@@ -15,7 +15,7 @@ $pass = isset($_GET['password']) ? trim($_GET['password']) : '';
 $stream_id = isset($_GET['stream']) ? $_GET['stream'] : '';
 $extension = isset($_GET['extension']) && !empty($_GET['extension']) ? $_GET['extension'] : 'mp4';
 
-// Authentification
+// Authentification client via la base de données
 $stmt = $pdo->prepare("SELECT id FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
 $stmt->execute([$user, $pass]);
 
@@ -24,7 +24,7 @@ if (!$stmt->fetch()) {
     die("Erreur : Authentification échouée.");
 }
 
-// Recherche de l'épisode dans la BDD
+// Recherche de l'épisode dans la BDD (stream_type = 'episode' ou 'series')
 $stmt = $pdo->prepare("SELECT streams.*, fournisseurs.type, fournisseurs.url_base, fournisseurs.user, fournisseurs.pass FROM streams INNER JOIN fournisseurs ON streams.fournisseur_id = fournisseurs.id WHERE stream_id = ?");
 $stmt->execute([$stream_id]);
 $data = $stmt->fetch();
