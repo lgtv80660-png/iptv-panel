@@ -1,8 +1,14 @@
 <?php
 require 'config.php';
 
+// En-têtes CORS obligatoires pour les lecteurs web/smart TV
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, OPTIONS");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { 
+    http_response_code(200); 
+    exit; 
+}
 
 function fetch_data_live($url, $headers = []) {
     $ch = curl_init();
@@ -22,8 +28,9 @@ function fetch_data_live($url, $headers = []) {
 $user = isset($_GET['username']) ? trim(strtolower($_GET['username'])) : '';
 $pass = isset($_GET['password']) ? trim($_GET['password']) : '';
 $stream_id = isset($_GET['stream']) ? $_GET['stream'] : '';
-$extension = isset($_GET['extension']) ? $_GET['extension'] : 'ts';
+$extension = isset($_GET['extension']) && !empty($_GET['extension']) ? $_GET['extension'] : 'ts';
 
+// Authentification via la base de données
 $stmt = $pdo->prepare("SELECT id FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
 $stmt->execute([$user, $pass]);
 
@@ -32,19 +39,21 @@ if (!$stmt->fetch()) {
     die("Erreur : Authentification échouée.");
 }
 
+// Recherche de la chaîne en direct
 $stmt = $pdo->prepare("SELECT streams.*, fournisseurs.type, fournisseurs.url_base, fournisseurs.user, fournisseurs.pass, fournisseurs.mac_address FROM streams INNER JOIN fournisseurs ON streams.fournisseur_id = fournisseurs.id WHERE stream_id = ?");
 $stmt->execute([$stream_id]);
 $data = $stmt->fetch();
 
 if (!$data) { 
     header('HTTP/1.1 404 Not Found');
-    die("Erreur : Flux introuvable dans la base de données."); 
+    die("Erreur : Flux introuvable."); 
 }
 
 $url_finale = "";
 
 if ($data['type'] === 'xtream') {
-    $url_finale = sprintf("%s/live/%s/%s/%s.%s", $data['url_base'], $data['user'], $data['pass'], $data['direct_source'], $extension);
+    // Force la construction du lien direct Live
+    $url_finale = sprintf("%s/live/%s/%s/%s.%s", rtrim($data['url_base'], '/'), $data['user'], $data['pass'], $data['direct_source'], $extension);
 } 
 elseif ($data['type'] === 'm3u') {
     $url_finale = $data['direct_source'];
@@ -75,11 +84,12 @@ elseif ($data['type'] === 'stalker') {
     }
 }
 
+// Redirection directe vers le flux de la source
 if (!empty($url_finale)) {
     header("Location: " . $url_finale, true, 302);
     exit;
 } else {
     header('HTTP/1.1 502 Bad Gateway');
-    die("Erreur : Impossible de générer le lien de streaming.");
+    die("Erreur : Link non généré.");
 }
 ?>
