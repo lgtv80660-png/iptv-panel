@@ -27,7 +27,7 @@ if (!$client) {
     exit; 
 }
 
-// --- FONCTION PROXY CURL POUR RÉCUPÉRER LES DONNÉES DISTANTES ---
+// --- FONCTION PROXY CURL ---
 function fetch_data_proxy($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -122,13 +122,12 @@ elseif ($action === 'get_vod_streams') {
         $stmt->execute([$cat_id]);
         $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $stmt = $pdo->query("
+        $streams = $pdo->query("
             SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id, s.direct_source 
             FROM streams s 
             INNER JOIN categories c ON s.category_id = c.category_id 
             WHERE s.stream_type = 'movie' AND s.visible = 1 AND c.visible = 1
-        ");
-        $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        ")->fetchAll(PDO::FETCH_ASSOC);
     }
     
     $proxy_base = "https://" . $_SERVER['HTTP_HOST'];
@@ -233,24 +232,29 @@ elseif ($action === 'get_series_info') {
             $data = json_decode($json, true);
             if (isset($data['episodes']) && is_array($data['episodes'])) {
                 $stmt_check = $pdo->prepare("SELECT stream_id FROM streams WHERE fournisseur_id = ? AND stream_type = 'episode' AND direct_source = ?");
-                $stmt_insert = $pdo->prepare("INSERT INTO streams (fournisseur_id, stream_name, stream_type, direct_source, category_id, visible) VALUES (?, ?, 'episode', ?, ?, 1)");
+                $stmt_insert = $pdo->prepare("INSERT INTO streams (fournisseur_id, stream_name, stream_icon, stream_type, category_id, direct_source, visible) VALUES (?, ?, ?, 'episode', ?, ?, 1)");
                 
                 foreach ($data['episodes'] as $season_key => $episodes_list) {
                     if (is_array($episodes_list)) {
                         foreach ($episodes_list as $ep_index => $ep) {
                             if (isset($ep['id'])) {
                                 $remote_ep_id = $ep['id'];
+                                $ep_title = $ep['title'] ?? 'Episode';
+                                $ep_icon = $ep['info']['movie_image'] ?? $series['stream_icon'] ?? '';
+                                $ep_ext = $ep['container_extension'] ?? 'mp4';
+
                                 $stmt_check->execute([$series['fournisseur_id'], $remote_ep_id]);
                                 $existing = $stmt_check->fetch(PDO::FETCH_ASSOC);
                                 
                                 if ($existing) { 
                                     $local_ep_id = $existing['stream_id']; 
                                 } else { 
-                                    $stmt_insert->execute([$series['fournisseur_id'], $ep['title'] ?? 'Episode', $remote_ep_id, $series['category_id']]); 
+                                    $stmt_insert->execute([$series['fournisseur_id'], $ep_title, $ep_icon, $series['category_id'], $remote_ep_id]); 
                                     $local_ep_id = $pdo->lastInsertId(); 
                                 }
                                 
                                 $data['episodes'][$season_key][$ep_index]['id'] = (string)$local_ep_id;
+                                $data['episodes'][$season_key][$ep_index]['container_extension'] = $ep_ext;
                             }
                         }
                     }
