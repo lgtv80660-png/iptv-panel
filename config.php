@@ -1,13 +1,15 @@
 <?php
-$host = 'localhost';
-$db   = 'iptv_panel'; // Remplacez par le nom de votre base
-$user = 'root';       // Identifiant de votre base
-$pass = '';           // Mot de passe
+// Récupération des variables fournies automatiquement par Railway
+$host = getenv('MYSQLHOST') ?: ($_ENV['MYSQLHOST'] ?? 'localhost');
+$port = getenv('MYSQLPORT') ?: ($_ENV['MYSQLPORT'] ?? '3306');
+$db   = getenv('MYSQLDATABASE') ?: ($_ENV['MYSQLDATABASE'] ?? 'railway');
+$user = getenv('MYSQLUSER') ?: ($_ENV['MYSQLUSER'] ?? 'root');
+$pass = getenv('MYSQLPASSWORD') ?: ($_ENV['MYSQLPASSWORD'] ?? '');
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8", $user, $pass);
+    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $user, $pass);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
-    die("Erreur de connexion : " . $e->getMessage());
+    die("Erreur de connexion à la base de données : " . $e->getMessage());
 }
 ?>
