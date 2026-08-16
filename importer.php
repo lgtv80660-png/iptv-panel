@@ -5,7 +5,6 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Configuration optimale des ressources sur le serveur Railway
 set_time_limit(300);
 ini_set('memory_limit', '512M');
 
@@ -28,7 +27,7 @@ function fetch_data($url, $headers = []) {
     return $result;
 }
 
-// Mise à jour de la structure de la base de données si nécessaire
+// Mise à jour de la structure de la BDD si nécessaire
 try { $pdo->query("ALTER TABLE categories ADD COLUMN visible TINYINT(1) DEFAULT 1"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE streams ADD COLUMN visible TINYINT(1) DEFAULT 1"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE streams ADD COLUMN fournisseur_id INT"); } catch(Exception $e){}
@@ -36,17 +35,21 @@ try { $pdo->query("ALTER TABLE categories ADD COLUMN fournisseur_id INT"); } cat
 
 $fournisseurs = $pdo->query("SELECT * FROM fournisseurs WHERE active = 1")->fetchAll();
 
+// Préparation des requêtes SQL réutilisables (sécurisées contre les caractères spéciaux)
+$stmt_insert_cat = $pdo->prepare("INSERT INTO categories (category_name, parent_id, visible, fournisseur_id) VALUES (?, 0, 1, ?)");
+$stmt_insert_stream = $pdo->prepare("INSERT INTO streams (fournisseur_id, stream_name, stream_icon, stream_type, category_id, direct_source, visible) VALUES (?, ?, ?, ?, ?, ?, 1)");
+
 foreach ($fournisseurs as $f) {
     $fid = $f['id'];
     $nom_fournisseur = $f['nom'];
     echo "<h3>Importation source : " . htmlspecialchars($nom_fournisseur) . " (" . strtoupper($f['type']) . ")</h3>";
 
-    // Nettoyage ciblé du fournisseur courant uniquement (préserve les IDs des autres sources)
+    // Nettoyage des anciennes données pour ce fournisseur uniquement
     $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ?")->execute([$fid]);
     $pdo->prepare("DELETE FROM categories WHERE fournisseur_id = ?")->execute([$fid]);
 
     // ==========================================
-    // 1. TRAITEMENT XTREAM CODES
+    // 1. IMPORTATION XTREAM CODES
     // ==========================================
     if ($f['type'] === 'xtream') {
         $baseUrl = sprintf("%s/player_api.php?username=%s&password=%s", rtrim($f['url_base'], '/'), $f['user'], $f['pass']);
@@ -57,9 +60,8 @@ foreach ($fournisseurs as $f) {
             'get_vod_categories' => 'movie', 
             'get_series_categories' => 'series'
         ];
-        
-        $stmt_cat = $pdo->prepare("INSERT INTO categories (category_name, parent_id, visible, fournisseur_id) VALUES (?, 0, 1, ?)");
 
+        // Importation des catégories
         foreach ($types_cat as $action => $type) {
             $json = fetch_data("$baseUrl&action=$action");
             if ($json) {
@@ -68,10 +70,10 @@ foreach ($fournisseurs as $f) {
                     foreach ($cats as $c) {
                         if (isset($c['category_id'])) {
                             $remote_id = trim((string)$c['category_id']);
-                            $cat_name = $c['category_name'] ?? 'Général';
+                            $cat_name = "[" . $nom_fournisseur . "] " . ($c['category_name'] ?? 'Général');
                             
                             try { 
-                                $stmt_cat->execute(["[" . $nom_fournisseur . "] " . $cat_name, $fid]); 
+                                $stmt_insert_cat->execute([$cat_name, $fid]); 
                                 $local_id = $pdo->lastInsertId();
                                 $cat_map[$type][$remote_id] = $local_id;
                             } catch (Exception $e) {}
@@ -81,6 +83,7 @@ foreach ($fournisseurs as $f) {
             }
         }
 
+        // Importation des flux (Live, Vod, Séries)
         $types_streams = [
             'get_live_streams' => 'live', 
             'get_vod_streams' => 'movie', 
@@ -92,42 +95,29 @@ foreach ($fournisseurs as $f) {
             if ($json) {
                 $streams = json_decode($json, true);
                 if (is_array($streams)) {
-                    $values = [];
-                    $params = [];
+                    $pdo->beginTransaction(); // Transaction pour accélérer l'insertion
                     foreach ($streams as $s) {
                         $name = $s['name'] ?? '';
                         $icon = $s['stream_icon'] ?? $s['cover'] ?? '';
                         $remote_cat = trim((string)($s['category_id'] ?? '1'));
-                        
-                        if (isset($cat_map[$type][$remote_cat])) {
-                            $local_cat = $cat_map[$type][$remote_cat];
-                            $source_id = $s['stream_id'] ?? $s['series_id'] ?? '';
+                        $source_id = $s['stream_id'] ?? $s['series_id'] ?? '';
 
-                            if ($name && $source_id) {
-                                $values[] = "(?, ?, ?, ?, ?, ?, 1)";
-                                array_push($params, $fid, $name, $icon, $type, $local_cat, $source_id);
-                                
-                                if (count($values) >= 500) {
-                                    $sql = "INSERT INTO streams (fournisseur_id, stream_name, stream_icon, stream_type, category_id, direct_source, visible) VALUES " . implode(',', $values);
-                                    $pdo->prepare($sql)->execute($params);
-                                    $values = [];
-                                    $params = [];
-                                }
-                            }
+                        if ($name && $source_id && isset($cat_map[$type][$remote_cat])) {
+                            $local_cat = $cat_map[$type][$remote_cat];
+                            try {
+                                $stmt_insert_stream->execute([$fid, $name, $icon, $type, $local_cat, $source_id]);
+                            } catch (Exception $e) {}
                         }
                     }
-                    if (!empty($values)) {
-                        $sql = "INSERT INTO streams (fournisseur_id, stream_name, stream_icon, stream_type, category_id, direct_source, visible) VALUES " . implode(',', $values);
-                        $pdo->prepare($sql)->execute($params);
-                    }
+                    $pdo->commit();
                 }
             }
         }
-        echo "✔ Xtream importé avec succès.<br><hr>";
+        echo "✔ Source Xtream importée avec succès.<br><hr>";
     } 
 
     // ==========================================
-    // 2. TRAITEMENT STALKER (MAG)
+    // 2. IMPORTATION STALKER (MAG)
     // ==========================================
     elseif ($f['type'] === 'stalker') {
         $portalUrl = rtrim($f['url_base'], '/');
@@ -147,9 +137,9 @@ foreach ($fournisseurs as $f) {
         if ($token) { $headers[] = "Authorization: Bearer " . $token; }
         $headers[] = "Cookie: mac=" . urlencode($mac) . "; stb_lang=fr; timezone=Europe/Paris";
 
-        $stmt_cat = $pdo->prepare("INSERT INTO categories (category_name, parent_id, visible, fournisseur_id) VALUES (?, 0, 1, ?)");
         $cat_map = [];
 
+        // Genres / Catégories
         $genresUrl = "$portalUrl/c/portal.php?type=itv&action=get_genres";
         $genresResp = fetch_data($genresUrl, $headers);
         $genresData = json_decode($genresResp, true);
@@ -158,11 +148,11 @@ foreach ($fournisseurs as $f) {
             $genres = isset($genresData['js']['data']) ? $genresData['js']['data'] : $genresData['js'];
             foreach ($genres as $genre) {
                 $remote_id = (string)($genre['id'] ?? '');
-                $cat_title = $genre['title'] ?? $genre['name'] ?? 'Inconnu';
+                $cat_title = "[" . $nom_fournisseur . "] " . ($genre['title'] ?? $genre['name'] ?? 'Inconnu');
                 
                 if ($remote_id !== '') {
                     try { 
-                        $stmt_cat->execute(["[" . $nom_fournisseur . "] " . $cat_title, $fid]); 
+                        $stmt_insert_cat->execute([$cat_title, $fid]); 
                         $local_id = $pdo->lastInsertId();
                         $cat_map[$remote_id] = $local_id;
                     } catch (Exception $e) {}
@@ -170,9 +160,10 @@ foreach ($fournisseurs as $f) {
             }
         }
 
-        $stmt_cat->execute(["[" . $nom_fournisseur . "] Général (Stalker)", $fid]); 
+        $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (Stalker)", $fid]); 
         $default_cat_id = $pdo->lastInsertId();
 
+        // Chaînes
         $channelsUrl = "$portalUrl/c/portal.php?type=itv&action=get_all_channels";
         $channelsResp = fetch_data($channelsUrl, $headers);
         $channelsData = json_decode($channelsResp, true);
@@ -180,36 +171,23 @@ foreach ($fournisseurs as $f) {
         if (isset($channelsData['js']) && is_array($channelsData['js'])) {
             $channels = isset($channelsData['js']['data']) ? $channelsData['js']['data'] : $channelsData['js'];
 
-            $values = [];
-            $params = [];
+            $pdo->beginTransaction();
             foreach ($channels as $ch) {
                 $name = $ch['name'] ?? '';
                 $icon = $ch['logo'] ?? '';
-                
                 $remote_cat = (string)($ch['tv_genre_id'] ?? $ch['genre_id'] ?? $ch['category_id'] ?? '');
                 $cmd = $ch['cmd'] ?? '';
-
                 $local_cat = $cat_map[$remote_cat] ?? $default_cat_id;
 
                 if ($name && $cmd) {
-                    $values[] = "(?, ?, ?, 'live', ?, ?, 1)";
-                    array_push($params, $fid, $name, $icon, $local_cat, $cmd);
-
-                    if (count($values) >= 500) {
-                        $sql = "INSERT INTO streams (fournisseur_id, stream_name, stream_icon, stream_type, category_id, direct_source, visible) VALUES " . implode(',', $values);
-                        $pdo->prepare($sql)->execute($params);
-                        $values = [];
-                        $params = [];
-                    }
+                    try {
+                        $stmt_insert_stream->execute([$fid, $name, $icon, 'live', $local_cat, $cmd]);
+                    } catch (Exception $e) {}
                 }
             }
-
-            if (!empty($values)) {
-                $sql = "INSERT INTO streams (fournisseur_id, stream_name, stream_icon, stream_type, category_id, direct_source, visible) VALUES " . implode(',', $values);
-                $pdo->prepare($sql)->execute($params);
-            }
+            $pdo->commit();
         }
-        echo "✔ Stalker importé avec succès.<br><hr>";
+        echo "✔ Source Stalker importée avec succès.<br><hr>";
     }
 }
 
