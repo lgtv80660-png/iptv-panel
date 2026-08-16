@@ -38,13 +38,10 @@ if (!$data) {
     die("Erreur : Épisode introuvable."); 
 }
 
-// 3. Construction de l'URL finale
+// 3. Construction de l'URL finale vers le fournisseur d'origine
 $url_finale = "";
 if ($data['type'] === 'xtream') {
     $base_host = rtrim($data['url_base'], '/');
-    // Force le protocole HTTPS si le serveur d'origine le supporte
-    $base_host = str_replace('http://', 'https://', $base_host);
-    
     $url_finale = sprintf("%s/series/%s/%s/%s.%s", $base_host, $data['user'], $data['pass'], $data['direct_source'], $extension);
 } elseif ($data['type'] === 'm3u') {
     $url_finale = $data['direct_source'];
