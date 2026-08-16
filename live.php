@@ -1,7 +1,6 @@
 <?php
 require 'config.php';
 
-// En-têtes CORS obligatoires pour la lecture multi-plateforme
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
@@ -53,7 +52,6 @@ if (!$data) {
 $url_finale = "";
 
 if ($data['type'] === 'xtream') {
-    // Nettoyage de l'URL de base et construction du lien Live
     $base_host = rtrim($data['url_base'], '/');
     $url_finale = sprintf("%s/live/%s/%s/%s.%s", $base_host, $data['user'], $data['pass'], $data['direct_source'], $extension);
 } 
@@ -87,7 +85,6 @@ elseif ($data['type'] === 'stalker') {
 }
 
 if (!empty($url_finale)) {
-    // Redirection HTTP 302 vers la source finale
     header("Location: " . $url_finale, true, 302);
     exit;
 } else {
