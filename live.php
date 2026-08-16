@@ -1,6 +1,9 @@
 <?php
 require 'config.php';
 
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+
 function fetch_data_live($url, $headers = []) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -16,28 +19,19 @@ function fetch_data_live($url, $headers = []) {
     return $result;
 }
 
-// 1. Récupération des identifiants (Ajout de l'extension)
 $user = isset($_GET['username']) ? trim(strtolower($_GET['username'])) : '';
 $pass = isset($_GET['password']) ? trim($_GET['password']) : '';
 $stream_id = isset($_GET['stream']) ? $_GET['stream'] : '';
-$extension = isset($_GET['extension']) ? $_GET['extension'] : 'ts'; // Par défaut ts, mais acceptera m3u8
+$extension = isset($_GET['extension']) ? $_GET['extension'] : 'ts';
 
-// 2. Authentification 
-$auth_ok = false;
-if ($user === 'zohir' && $pass === '123456') {
-    $auth_ok = true;
-} else {
-    $stmt = $pdo->prepare("SELECT id FROM clients WHERE username = ? AND password = ? AND active = 1");
-    $stmt->execute([$user, $pass]);
-    if ($stmt->fetch()) { $auth_ok = true; }
-}
+$stmt = $pdo->prepare("SELECT id FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
+$stmt->execute([$user, $pass]);
 
-if (!$auth_ok) {
+if (!$stmt->fetch()) {
     header('HTTP/1.1 401 Unauthorized');
     die("Erreur : Authentification échouée.");
 }
 
-// 3. Recherche du flux
 $stmt = $pdo->prepare("SELECT streams.*, fournisseurs.type, fournisseurs.url_base, fournisseurs.user, fournisseurs.pass, fournisseurs.mac_address FROM streams INNER JOIN fournisseurs ON streams.fournisseur_id = fournisseurs.id WHERE stream_id = ?");
 $stmt->execute([$stream_id]);
 $data = $stmt->fetch();
@@ -47,11 +41,9 @@ if (!$data) {
     die("Erreur : Flux introuvable dans la base de données."); 
 }
 
-// 4. Génération de l'URL finale selon le type de fournisseur
 $url_finale = "";
 
 if ($data['type'] === 'xtream') {
-    // Utilisation de la variable $extension au lieu de forcer '.ts'
     $url_finale = sprintf("%s/live/%s/%s/%s.%s", $data['url_base'], $data['user'], $data['pass'], $data['direct_source'], $extension);
 } 
 elseif ($data['type'] === 'm3u') {
@@ -83,7 +75,6 @@ elseif ($data['type'] === 'stalker') {
     }
 }
 
-// 5. Redirection
 if (!empty($url_finale)) {
     header("Location: " . $url_finale, true, 302);
     exit;
