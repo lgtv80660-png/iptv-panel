@@ -1,264 +1,109 @@
 <?php
 require 'config.php';
 
+// En-têtes CORS obligatoires pour les lecteurs IPTV
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+header("Access-Control-Allow-Methods: GET, HEAD, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Range");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { 
     http_response_code(200); 
     exit; 
 }
 
-header('Content-Type: application/json; charset=utf-8');
+set_time_limit(0);
+ini_set('memory_limit', '512M');
 
-$user = isset($_REQUEST['username']) ? trim(strtolower($_REQUEST['username'])) : '';
-$pass = isset($_REQUEST['password']) ? trim($_REQUEST['password']) : '';
-$action = isset($_REQUEST['action']) ? $_REQUEST['action'] : 'user_info';
-$cat_id = isset($_REQUEST['category_id']) ? $_REQUEST['category_id'] : '';
+$user = isset($_GET['username']) ? trim(strtolower($_GET['username'])) : '';
+$pass = isset($_GET['password']) ? trim($_GET['password']) : '';
+$stream_id = isset($_GET['stream']) ? $_GET['stream'] : '';
+$extension = isset($_GET['extension']) && !empty($_GET['extension']) ? $_GET['extension'] : 'mp4';
 
-// --- AUTHENTIFICATION CLIENT VIA LA BASE DE DONNÉES ---
-$stmt = $pdo->prepare("SELECT * FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
+// 1. Authentification dynamique
+$stmt = $pdo->prepare("SELECT id FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
 $stmt->execute([$user, $pass]);
-$client = $stmt->fetch(PDO::FETCH_ASSOC);
+$client = $stmt->fetch();
 
-if (!$client) { 
-    echo json_encode([]); 
-    exit; 
+if (!$client) {
+    file_put_contents(__DIR__ . '/debug_series.txt', date('Y-m-d H:i:s') . " | ERREUR : Auth échouée | User: '$user'\n", FILE_APPEND);
+    header('HTTP/1.1 401 Unauthorized');
+    die("Erreur : Authentification échouée.");
 }
 
-// --- FONCTION PROXY CURL ---
-function fetch_data_proxy($url) {
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'IPTVSmartersPro'); 
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: */*', 'Connection: keep-alive']);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30); 
-    $result = curl_exec($ch);
-    curl_close($ch);
-    return $result;
+// 2. Recherche de l'épisode dans la BDD
+$stmt = $pdo->prepare("SELECT streams.*, fournisseurs.type, fournisseurs.url_base, fournisseurs.user, fournisseurs.pass FROM streams INNER JOIN fournisseurs ON streams.fournisseur_id = fournisseurs.id WHERE stream_id = ? AND stream_type IN ('series', 'episode')");
+$stmt->execute([$stream_id]);
+$data = $stmt->fetch();
+
+if (!$data) { 
+    file_put_contents(__DIR__ . '/debug_series.txt', date('Y-m-d H:i:s') . " | ERREUR : ID Introuvable | Stream ID: '$stream_id'\n", FILE_APPEND);
+    header('HTTP/1.1 404 Not Found');
+    die("Erreur : Épisode introuvable."); 
 }
 
-$base_proxy_url = "https://" . $_SERVER['HTTP_HOST'];
+// 3. Construction de l'URL distante
+$url_finale = "";
+if ($data['type'] === 'xtream') {
+    $base_host = rtrim($data['url_base'], '/');
+    $url_finale = sprintf("%s/series/%s/%s/%s.%s", $base_host, $data['user'], $data['pass'], $data['direct_source'], $extension);
+} elseif ($data['type'] === 'm3u') {
+    $url_finale = $data['direct_source'];
+}
 
-// ==========================================
-// 1. GESTION DES CHAÎNES EN DIRECT (LIVE)
-// ==========================================
-if ($action === 'get_live_categories') {
-    $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'live' AND c.visible = 1 AND s.visible = 1");
-    $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $result = array_map(function($c) { 
-        return [
-            'category_id' => (string)$c['category_id'], 
-            'category_name' => $c['category_name'], 
-            'parent_id' => (int)$c['parent_id']
-        ]; 
-    }, $categories);
-    echo json_encode($result);
-} 
-elseif ($action === 'get_live_streams') {
-    if ($cat_id !== '' && $cat_id !== 'all' && $cat_id !== '0') {
-        $stmt = $pdo->prepare("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'live' AND s.visible = 1 AND c.visible = 1 AND s.category_id = ?");
-        $stmt->execute([$cat_id]);
-        $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        $streams = $pdo->query("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'live' AND s.visible = 1 AND c.visible = 1")->fetchAll(PDO::FETCH_ASSOC);
+if (empty($url_finale)) {
+    header('HTTP/1.1 502 Bad Gateway');
+    die("Erreur : Lien vidéo introuvable.");
+}
+
+// --- LOG DEBUG ---
+$log = date('Y-m-d H:i:s') . " | SUCCÈS STREAM | Stream ID: $stream_id | Source: $url_finale\n";
+file_put_contents(__DIR__ . '/debug_series.txt', $log, FILE_APPEND);
+
+// 4. Définition du Content-Type pour le lecteur
+$mime_types = [
+    'mp4'  => 'video/mp4',
+    'mkv'  => 'video/x-matroska',
+    'avi'  => 'video/x-msvideo',
+    'm3u8' => 'application/x-mpegURL',
+    'ts'   => 'video/mp2t'
+];
+$content_type = $mime_types[strtolower($extension)] ?? 'video/mp4';
+
+header("Content-Type: " . $content_type);
+
+// Transmettre les en-têtes HTTP de support Range (reprise de lecture / avance rapide)
+$req_headers = [];
+if (isset($_SERVER['HTTP_RANGE'])) {
+    $req_headers[] = 'Range: ' . $_SERVER['HTTP_RANGE'];
+}
+
+// 5. Proxy de streaming cURL direct
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $url_finale);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+curl_setopt($ch, CURLOPT_TIMEOUT, 0);
+
+if (!empty($req_headers)) {
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
+}
+
+// Relayer les en-têtes de réponse du fournisseur au lecteur
+curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($curl, $header) {
+    $len = strlen($header);
+    $header_clean = trim($header);
+    if (strpos($header_clean, 'Content-Range:') === 0 || 
+        strpos($header_clean, 'Content-Length:') === 0 || 
+        strpos($header_clean, 'Accept-Ranges:') === 0) {
+        header($header_clean);
     }
-    
-    $result = array_map(function($s) use ($base_proxy_url, $user, $pass) {
-        return [
-            'num' => 0, 
-            'name' => $s['stream_name'], 
-            'stream_type' => 'live', 
-            'stream_id' => (int)$s['stream_id'], 
-            'stream_icon' => $s['stream_icon'] ?? '', 
-            'category_id' => (string)($s['category_id'] ?? 1), 
-            'epg_channel_id' => null, 
-            'added' => (string)time(), 
-            'custom_sid' => '', 
-            'tv_archive' => 0, 
-            'direct_source' => $base_proxy_url . '/live.php?username=' . urlencode($user) . '&password=' . urlencode($pass) . '&stream=' . $s['stream_id'] . '&extension=ts', 
-            'tv_archive_duration' => 0
-        ];
-    }, $streams);
-    echo json_encode($result);
-} 
+    return $len;
+});
 
-// ==========================================
-// 2. GESTION DES FILMS (VOD)
-// ==========================================
-elseif ($action === 'get_vod_categories') {
-    $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'movie' AND c.visible = 1 AND s.visible = 1");
-    $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $result = array_map(function($c) { 
-        return [
-            'category_id' => (string)$c['category_id'], 
-            'category_name' => $c['category_name'], 
-            'parent_id' => (int)$c['parent_id']
-        ]; 
-    }, $categories);
-    echo json_encode($result);
-}
-elseif ($action === 'get_vod_streams') {
-    if ($cat_id !== '' && $cat_id !== 'all' && $cat_id !== '0') {
-        $stmt = $pdo->prepare("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'movie' AND s.visible = 1 AND c.visible = 1 AND s.category_id = ?");
-        $stmt->execute([$cat_id]);
-        $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        $streams = $pdo->query("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'movie' AND s.visible = 1 AND c.visible = 1")->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    $result = array_map(function($s) use ($base_proxy_url, $user, $pass) {
-        return [
-            'num' => 1, 
-            'name' => (string)$s['stream_name'], 
-            'title' => (string)$s['stream_name'], 
-            'stream_type' => 'movie', 
-            'stream_id' => (int)$s['stream_id'], 
-            'stream_icon' => (string)($s['stream_icon'] ?? ''), 
-            'plot' => 'Film disponible en streaming.',
-            'cast' => 'Non spécifié',
-            'director' => 'Non spécifié',
-            'genre' => 'Films VOD',
-            'releaseDate' => '2026',
-            'rating' => '5.0', 
-            'rating_5based' => 5, 
-            'added' => (string)time(), 
-            'is_adult' => '0',
-            'category_id' => (string)($s['category_id'] ?? '1'), 
-            'container_extension' => 'mp4', 
-            'custom_sid' => '', 
-            'direct_source' => $base_proxy_url . '/vod.php?username=' . urlencode($user) . '&password=' . urlencode($pass) . '&stream=' . $s['stream_id'] . '&extension=mp4'
-        ];
-    }, $streams);
-    
-    echo json_encode($result);
-    exit;
-}
-
-// ==========================================
-// 3. GESTION DES SÉRIES & ÉPISODES
-// ==========================================
-elseif ($action === 'get_series_categories') {
-    $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'series' AND c.visible = 1 AND s.visible = 1");
-    $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $result = array_map(function($c) { 
-        return [
-            'category_id' => (string)$c['category_id'], 
-            'category_name' => $c['category_name'], 
-            'parent_id' => (int)$c['parent_id']
-        ]; 
-    }, $categories);
-    echo json_encode($result);
-}
-elseif ($action === 'get_series') {
-    if ($cat_id !== '' && $cat_id !== 'all' && $cat_id !== '0') {
-        $stmt = $pdo->prepare("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'series' AND s.visible = 1 AND c.visible = 1 AND s.category_id = ?");
-        $stmt->execute([$cat_id]);
-        $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        $streams = $pdo->query("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'series' AND s.visible = 1 AND c.visible = 1")->fetchAll(PDO::FETCH_ASSOC);
-    }
-    
-    $result = array_map(function($s) {
-        return [
-            'num' => 0, 
-            'name' => $s['stream_name'], 
-            'series_id' => (int)$s['stream_id'], 
-            'cover' => $s['stream_icon'] ?? '', 
-            'plot' => '', 
-            'cast' => '', 
-            'director' => '', 
-            'genre' => '', 
-            'releaseDate' => '', 
-            'last_modified' => '0', 
-            'rating' => '0', 
-            'rating_5based' => 0, 
-            'backdrop_path' => [], 
-            'youtube_trailer' => '', 
-            'episode_run_time' => '', 
-            'category_id' => (string)($s['category_id'] ?? 1),
-            'added' => (string)time()
-        ];
-    }, $streams);
-    echo json_encode($result);
-}
-elseif ($action === 'get_series_info') {
-    $local_series_id = isset($_REQUEST['series_id']) ? $_REQUEST['series_id'] : '';
-    
-    $stmt = $pdo->prepare("SELECT s.*, f.url_base, f.user, f.pass, f.type FROM streams s INNER JOIN fournisseurs f ON s.fournisseur_id = f.id WHERE s.stream_id = ?");
-    $stmt->execute([$local_series_id]);
-    $series = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($series && $series['type'] === 'xtream') {
-        $remote_url = sprintf("%s/player_api.php?username=%s&password=%s&action=get_series_info&series_id=%s", rtrim($series['url_base'], '/'), $series['user'], $series['pass'], $series['direct_source']);
-        $json = fetch_data_proxy($remote_url);
-        
-        if ($json) {
-            $data = json_decode($json, true);
-            if (isset($data['episodes']) && is_array($data['episodes'])) {
-                $stmt_check = $pdo->prepare("SELECT stream_id FROM streams WHERE fournisseur_id = ? AND stream_type = 'episode' AND direct_source = ?");
-                $stmt_insert = $pdo->prepare("INSERT INTO streams (fournisseur_id, stream_name, stream_icon, stream_type, category_id, direct_source, visible) VALUES (?, ?, ?, 'episode', ?, ?, 1)");
-                
-                foreach ($data['episodes'] as $season_key => $episodes_list) {
-                    if (is_array($episodes_list)) {
-                        foreach ($episodes_list as $ep_index => $ep) {
-                            if (isset($ep['id'])) {
-                                $remote_ep_id = $ep['id'];
-                                $ep_title = $ep['title'] ?? 'Episode';
-                                $ep_icon = $ep['info']['movie_image'] ?? $series['stream_icon'] ?? '';
-                                $ep_ext = !empty($ep['container_extension']) ? $ep['container_extension'] : 'mp4';
-
-                                $stmt_check->execute([$series['fournisseur_id'], $remote_ep_id]);
-                                $existing = $stmt_check->fetch(PDO::FETCH_ASSOC);
-                                
-                                if ($existing) { 
-                                    $local_ep_id = $existing['stream_id']; 
-                                } else { 
-                                    $stmt_insert->execute([$series['fournisseur_id'], $ep_title, $ep_icon, $series['category_id'], $remote_ep_id]); 
-                                    $local_ep_id = $pdo->lastInsertId(); 
-                                }
-                                
-                                $data['episodes'][$season_key][$ep_index]['id'] = (string)$local_ep_id;
-                                $data['episodes'][$season_key][$ep_index]['container_extension'] = $ep_ext;
-                                $data['episodes'][$season_key][$ep_index]['custom_sid'] = '';
-                            }
-                        }
-                    }
-                }
-                echo json_encode($data); 
-                exit;
-            }
-        }
-    }
-    echo json_encode(['episodes' => [], 'info' => []]);
-    exit;
-}
-
-// ==========================================
-// 4. RÉPONSE D'AUTHENTIFICATION HTTPS FORCÉE
-// ==========================================
-else {
-    $host = $_SERVER['HTTP_HOST'];
-
-    echo json_encode([
-        'user_info' => [
-            'username' => $client['username'], 
-            'password' => $client['password'], 
-            'auth' => 1, 
-            'status' => 'Active', 
-            'max_connections' => '1', 
-            'allowed_output_formats' => ['m3u8', 'ts']
-        ], 
-        'server_info' => [
-            'url' => $host, 
-            'port' => '443', 
-            'server_protocol' => 'https'
-        ]
-    ]);
-}
+curl_exec($ch);
+curl_close($ch);
+exit;
 ?>
