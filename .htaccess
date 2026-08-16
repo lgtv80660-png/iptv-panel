@@ -3,11 +3,11 @@ RewriteEngine On
 
 RewriteBase /
 
-# 1. Direct TV
-RewriteRule ^live/([^/]+)/([^/]+)/([^/]+)\.(ts|m3u8)$ live.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
+# 1. Redirection Direct TV (Live)
+RewriteRule ^live/([^/]+)/([^/]+)/([^/]+)\.(.*)$ live.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
 
-# 2. Films (VOD)
-RewriteRule ^movie/([^/]+)/([^/]+)/([^/]+)\.(mp4|mkv|avi|m3u8)$ vod.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
+# 2. Redirection Films (VOD)
+RewriteRule ^movie/([^/]+)/([^/]+)/([^/]+)\.(.*)$ vod.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
 
-# 3. Séries (Capture l'ID d'épisode et l'extension)
-RewriteRule ^series/([^/]+)/([^/]+)/([^/]+)\.(mp4|mkv|avi|m3u8)$ series.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
+# 3. Redirection Séries (Accepte n'importe quelle extension : mkv, mp4, ts, etc.)
+RewriteRule ^series/([^/]+)/([^/]+)/([^/]+)\.(.*)$ series.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
