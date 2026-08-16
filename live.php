@@ -30,7 +30,7 @@ $pass = isset($_GET['password']) ? trim($_GET['password']) : '';
 $stream_id = isset($_GET['stream']) ? $_GET['stream'] : '';
 $extension = isset($_GET['extension']) && !empty($_GET['extension']) ? $_GET['extension'] : 'ts';
 
-// Authentification
+// Authentification client via la base de données
 $stmt = $pdo->prepare("SELECT id FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
 $stmt->execute([$user, $pass]);
 
