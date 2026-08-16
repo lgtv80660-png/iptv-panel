@@ -3,11 +3,11 @@ RewriteEngine On
 
 RewriteBase /
 
-# 1. Redirection Direct TV (Live)
+# 1. Direct TV (Live)
 RewriteRule ^live/([^/]+)/([^/]+)/([^/]+)\.(.*)$ live.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
 
-# 2. Redirection Films (VOD)
+# 2. Films (VOD)
 RewriteRule ^movie/([^/]+)/([^/]+)/([^/]+)\.(.*)$ vod.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
 
-# 3. Redirection Séries (Accepte n'importe quelle extension : mkv, mp4, ts, etc.)
+# 3. Séries (Supporte mkv, mp4, avi, etc.)
 RewriteRule ^series/([^/]+)/([^/]+)/([^/]+)\.(.*)$ series.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
