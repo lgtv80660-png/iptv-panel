@@ -479,47 +479,51 @@ if ($mode === 'streams') {
             }
 
             document.getElementById('previewTitle').innerText = name;
-            let video = document.getElementById('videoPlayer');
+            const video = document.getElementById('videoPlayer');
             document.getElementById('playerError').style.display = 'none';
-            
+
+            if (hlsPlayer) {
+                hlsPlayer.destroy();
+                hlsPlayer = null;
+            }
+
             let url = '';
-            // Construction de l'URL avec les identifiants dynamiques
             if (type === 'live') {
                 url = `live.php?username=${previewUser}&password=${previewPass}&stream=${streamId}&extension=m3u8`;
             } else if (type === 'movie') {
                 url = `vod.php?username=${previewUser}&password=${previewPass}&stream=${streamId}&extension=mp4`;
-            } else {
+            } else if (type === 'episode') {
                 url = `series.php?username=${previewUser}&password=${previewPass}&stream=${streamId}&extension=mp4`;
+            } else {
+                document.getElementById('playerError').style.display = 'block';
+                return;
             }
 
-            var modal = new bootstrap.Modal(document.getElementById('previewModal'));
+            const modal = new bootstrap.Modal(document.getElementById('previewModal'));
             modal.show();
 
-            if (hlsPlayer) { hlsPlayer.destroy(); }
-
-            if (Hls.isSupported()) {
-                hlsPlayer = new Hls({ debug: false });
-                hlsPlayer.loadSource(url);
-                hlsPlayer.attachMedia(video);
-                hlsPlayer.on(Hls.Events.MANIFEST_PARSED, function() {
-                    video.play();
-                });
-                
-                hlsPlayer.on(Hls.Events.ERROR, function(event, data) {
-                    if (data.fatal) {
-                        document.getElementById('playerError').style.display = 'block';
-                    }
-                });
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = url;
-                video.addEventListener('loadedmetadata', function() {
-                    video.play();
-                });
+            // HLS.js is only for HLS. MP4/MKV episodes and movies must use the
+            // browser's native media element; HLS.js cannot play a normal MP4 URL.
+            if (type === 'live') {
+                if (window.Hls && Hls.isSupported()) {
+                    hlsPlayer = new Hls({ debug: false });
+                    hlsPlayer.loadSource(url);
+                    hlsPlayer.attachMedia(video);
+                    hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+                    hlsPlayer.on(Hls.Events.ERROR, (event, data) => {
+                        if (data.fatal) document.getElementById('playerError').style.display = 'block';
+                    });
+                } else {
+                    video.src = url;
+                    video.addEventListener('loadedmetadata', () => video.play().catch(() => {}), { once: true });
+                }
             } else {
                 video.src = url;
-                video.play().catch(e => {
+                video.load();
+                video.addEventListener('loadedmetadata', () => video.play().catch(() => {}), { once: true });
+                video.addEventListener('error', () => {
                     document.getElementById('playerError').style.display = 'block';
-                });
+                }, { once: true });
             }
         }
 

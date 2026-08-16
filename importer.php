@@ -50,6 +50,7 @@ try { $pdo->query("ALTER TABLE streams MODIFY stream_id INT AUTO_INCREMENT"); } 
 try { $pdo->query("ALTER TABLE categories ADD COLUMN visible TINYINT(1) DEFAULT 1"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE streams ADD COLUMN visible TINYINT(1) DEFAULT 1"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE streams ADD COLUMN fournisseur_id INT"); } catch(Exception $e){}
+try { $pdo->query("ALTER TABLE streams ADD COLUMN container_extension VARCHAR(16) DEFAULT NULL"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE categories ADD COLUMN fournisseur_id INT"); } catch(Exception $e){}
 
 $fournisseurs = $pdo->query("SELECT * FROM fournisseurs WHERE active = 1")->fetchAll();

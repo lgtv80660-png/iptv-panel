@@ -48,7 +48,8 @@ function fetch_data_proxy($url) {
     return $result;
 }
 
-$base_proxy_url = "https://" . $_SERVER['HTTP_HOST'];
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$base_proxy_url = $scheme . '://' . $_SERVER['HTTP_HOST'];
 
 // ==========================================
 // 1. CHAÎNES EN DIRECT (LIVE)
@@ -78,7 +79,7 @@ elseif ($action === 'get_live_streams') {
         return [
             'num' => 0, 
             'name' => $s['stream_name'], 
-            'stream_type' => 'live', 
+            'stream_type' => 'live',
             'stream_id' => (int)$s['stream_id'], 
             'stream_icon' => $s['stream_icon'] ?? '', 
             'category_id' => (string)($s['category_id'] ?? 1), 
@@ -173,8 +174,10 @@ elseif ($action === 'get_series') {
         return [
             'num' => 0, 
             'name' => $s['stream_name'], 
-            'series_id' => (int)$s['stream_id'], 
-            'cover' => $s['stream_icon'] ?? '', 
+            'series_id' => (int)$s['stream_id'],
+            'stream_id' => (int)$s['stream_id'],
+            'cover' => $s['stream_icon'] ?? '',
+            'stream_icon' => $s['stream_icon'] ?? '', 
             'plot' => '', 
             'cast' => '', 
             'director' => '', 
@@ -193,54 +196,105 @@ elseif ($action === 'get_series') {
     echo json_encode($result);
 }
 elseif ($action === 'get_series_info') {
-    $local_series_id = isset($_REQUEST['series_id']) ? $_REQUEST['series_id'] : '';
-    
-    $stmt = $pdo->prepare("SELECT s.*, f.url_base, f.user, f.pass, f.type FROM streams s INNER JOIN fournisseurs f ON s.fournisseur_id = f.id WHERE s.stream_id = ?");
+    // Xtream-compatible parameter is series_id.
+    $local_series_id = trim((string)($_REQUEST['series_id'] ?? ''));
+
+    if ($local_series_id === '') {
+        echo json_encode(['episodes' => [], 'seasons' => [], 'info' => []]);
+        exit;
+    }
+
+    $stmt = $pdo->prepare("SELECT s.*, f.url_base, f.user, f.pass, f.type
+                           FROM streams s
+                           INNER JOIN fournisseurs f ON s.fournisseur_id = f.id
+                           WHERE s.stream_id = ? AND s.stream_type = 'series' AND s.visible = 1
+                           LIMIT 1");
     $stmt->execute([$local_series_id]);
     $series = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($series && $series['type'] === 'xtream') {
-        $remote_url = sprintf("%s/player_api.php?username=%s&password=%s&action=get_series_info&series_id=%s", rtrim($series['url_base'], '/'), $series['user'], $series['pass'], $series['direct_source']);
-        $json = fetch_data_proxy($remote_url);
-        
-        if ($json) {
-            $data = json_decode($json, true);
-            if (isset($data['episodes']) && is_array($data['episodes'])) {
-                $stmt_check = $pdo->prepare("SELECT stream_id FROM streams WHERE fournisseur_id = ? AND stream_type = 'episode' AND direct_source = ?");
-                $stmt_insert = $pdo->prepare("INSERT INTO streams (fournisseur_id, stream_name, stream_icon, stream_type, category_id, direct_source, visible) VALUES (?, ?, ?, 'episode', ?, ?, 1)");
-                
-                foreach ($data['episodes'] as $season_key => $episodes_list) {
-                    if (is_array($episodes_list)) {
-                        foreach ($episodes_list as $ep_index => $ep) {
-                            if (isset($ep['id'])) {
-                                $remote_ep_id = $ep['id'];
-                                $ep_title = $ep['title'] ?? 'Episode';
-                                $ep_icon = $ep['info']['movie_image'] ?? $series['stream_icon'] ?? '';
-                                $ep_ext = !empty($ep['container_extension']) ? $ep['container_extension'] : 'mp4';
 
-                                $stmt_check->execute([$series['fournisseur_id'], $remote_ep_id]);
-                                $existing = $stmt_check->fetch(PDO::FETCH_ASSOC);
-                                
-                                if ($existing) { 
-                                    $local_ep_id = $existing['stream_id']; 
-                                } else { 
-                                    $stmt_insert->execute([$series['fournisseur_id'], $ep_title, $ep_icon, $series['category_id'], $remote_ep_id]); 
-                                    $local_ep_id = $pdo->lastInsertId(); 
-                                }
-                                
-                                $data['episodes'][$season_key][$ep_index]['id'] = (string)$local_ep_id;
-                                $data['episodes'][$season_key][$ep_index]['container_extension'] = $ep_ext;
-                                $data['episodes'][$season_key][$ep_index]['custom_sid'] = '';
-                            }
-                        }
-                    }
-                }
-                echo json_encode($data); 
-                exit;
-            }
-        }
+    if (!$series || $series['type'] !== 'xtream') {
+        echo json_encode(['episodes' => [], 'seasons' => [], 'info' => []]);
+        exit;
     }
-    echo json_encode(['episodes' => [], 'info' => []]);
+
+    $remote_series_id = trim((string)$series['direct_source']);
+    $remote_url = rtrim($series['url_base'], '/') . '/player_api.php?' . http_build_query([
+        'username' => $series['user'],
+        'password' => $series['pass'],
+        'action'   => 'get_series_info',
+        'series_id'=> $remote_series_id
+    ], '', '&', PHP_QUERY_RFC3986);
+
+    $json = fetch_data_proxy($remote_url);
+    $data = is_string($json) ? json_decode($json, true) : null;
+
+    if (!is_array($data) || !isset($data['episodes']) || !is_array($data['episodes'])) {
+        echo json_encode(['episodes' => [], 'seasons' => [], 'info' => []]);
+        exit;
+    }
+
+    // Keep the provider episode ID internally, but expose the local episode ID
+    // to clients so /series/... can resolve it through our proxy.
+    $stmt_check = $pdo->prepare("SELECT stream_id, container_extension
+                                 FROM streams
+                                 WHERE fournisseur_id = ? AND stream_type = 'episode' AND direct_source = ?
+                                 LIMIT 1");
+    $stmt_insert = $pdo->prepare("INSERT INTO streams
+        (fournisseur_id, stream_name, stream_icon, stream_type, category_id, direct_source, container_extension, visible)
+        VALUES (?, ?, ?, 'episode', ?, ?, ?, 1)");
+
+    foreach ($data['episodes'] as $season_key => &$episodes_list) {
+        if (!is_array($episodes_list)) continue;
+
+        foreach ($episodes_list as $ep_index => &$ep) {
+            if (!is_array($ep) || empty($ep['id'])) continue;
+
+            $remote_ep_id = trim((string)$ep['id']);
+            $ep_title = (string)($ep['title'] ?? $ep['name'] ?? 'Episode');
+            $ep_icon = (string)($ep['info']['movie_image'] ?? $ep['info']['cover_big'] ?? $series['stream_icon'] ?? '');
+            $ep_ext = strtolower(trim((string)($ep['container_extension'] ?? $ep['container_ext'] ?? 'mp4')));
+            $ep_ext = preg_replace('/[^a-z0-9]/i', '', $ep_ext) ?: 'mp4';
+
+            $stmt_check->execute([$series['fournisseur_id'], $remote_ep_id]);
+            $existing = $stmt_check->fetch(PDO::FETCH_ASSOC);
+
+            if ($existing) {
+                $local_ep_id = (int)$existing['stream_id'];
+                if (!empty($existing['container_extension'])) {
+                    $ep_ext = strtolower($existing['container_extension']);
+                } else {
+                    $pdo->prepare("UPDATE streams SET container_extension = ? WHERE stream_id = ?")
+                        ->execute([$ep_ext, $local_ep_id]);
+                }
+            } else {
+                $stmt_insert->execute([
+                    $series['fournisseur_id'],
+                    $ep_title,
+                    $ep_icon,
+                    $series['category_id'],
+                    $remote_ep_id,
+                    $ep_ext
+                ]);
+                $local_ep_id = (int)$pdo->lastInsertId();
+            }
+
+            $ep['id'] = (string)$local_ep_id;
+            $ep['stream_id'] = (string)$local_ep_id;
+            $ep['container_extension'] = $ep_ext;
+            $ep['custom_sid'] = '';
+        }
+        unset($ep);
+    }
+    unset($episodes_list);
+
+    // Make sure standard Xtream clients receive series metadata even if the
+    // provider omits some optional keys.
+    if (!isset($data['info']) || !is_array($data['info'])) $data['info'] = [];
+    if (!isset($data['info']['name'])) $data['info']['name'] = $series['stream_name'];
+    if (!isset($data['info']['cover'])) $data['info']['cover'] = $series['stream_icon'] ?? '';
+    if (!isset($data['seasons']) || !is_array($data['seasons'])) $data['seasons'] = [];
+
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
