@@ -13,7 +13,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 set_time_limit(300);
-ini_set('memory_limit', '256M');
+ini_set('memory_limit', '512M');
 
 function fetch_data_stream($url, $headers = []) {
     $ch = curl_init();
@@ -27,11 +27,20 @@ function fetch_data_stream($url, $headers = []) {
     if (!empty($headers)) {
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     }
-    curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
     
     $result = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
     curl_close($ch);
+    
+    if ($error) {
+        return ["error" => "Erreur cURL : " . $error];
+    }
+    if ($httpCode !== 200) {
+        return ["error" => "Code HTTP reçu : " . $httpCode];
+    }
     return $result;
 }
 
@@ -49,7 +58,7 @@ $stmt_insert_stream = $pdo->prepare("INSERT INTO streams (fournisseur_id, stream
 foreach ($fournisseurs as $f) {
     $fid = $f['id'];
     $nom_fournisseur = $f['nom'];
-    echo "<h3>Importation source : " . htmlspecialchars($nom_fournisseur) . " (" . strtoupper($f['type']) . ")</h3>";
+    echo "<h2>Importation source : " . htmlspecialchars($nom_fournisseur) . " (" . strtoupper($f['type']) . ")</h2>";
     flush();
 
     // Nettoyage ciblé de la source
@@ -70,29 +79,37 @@ foreach ($fournisseurs as $f) {
         ];
 
         foreach ($types_cat as $action => $type) {
-            $json = fetch_data_stream("$baseUrl&action=$action");
-            if ($json) {
-                $cats = json_decode($json, true);
-                if (is_array($cats)) {
-                    foreach ($cats as $c) {
-                        if (isset($c['category_id'])) {
-                            $remote_id = trim((string)$c['category_id']);
-                            $cat_name = "[" . $nom_fournisseur . "] " . ($c['category_name'] ?? 'Général');
-                            
-                            try { 
-                                $stmt_insert_cat->execute([$cat_name, $fid]); 
-                                $local_id = $pdo->lastInsertId();
-                                $cat_map[$type][$remote_id] = $local_id;
-                            } catch (Exception $e) {}
-                        }
+            $resp = fetch_data_stream("$baseUrl&action=$action");
+            if (is_array($resp) && isset($resp['error'])) {
+                echo "<p style='color:red;'>⚠️ Erreur catégories ($type) : " . $resp['error'] . "</p>";
+                continue;
+            }
+            
+            $cats = json_decode($resp, true);
+            if (is_array($cats)) {
+                $c_count = 0;
+                foreach ($cats as $c) {
+                    if (isset($c['category_id'])) {
+                        $remote_id = trim((string)$c['category_id']);
+                        $cat_name = "[" . $nom_fournisseur . "] " . ($c['category_name'] ?? 'Général');
+                        
+                        try { 
+                            $stmt_insert_cat->execute([$cat_name, $fid]); 
+                            $local_id = $pdo->lastInsertId();
+                            $cat_map[$type][$remote_id] = $local_id;
+                            $c_count++;
+                        } catch (Exception $e) {}
                     }
                 }
+                echo "<p>✔ Catégories $type importées : $c_count</p>";
+            } else {
+                echo "<p style='color:orange;'>⚠️ Réponse JSON invalide pour catégories $type.</p>";
             }
-            // Création d'une catégorie par défaut si vide
-            if (empty($cat_map[$type])) {
-                $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (" . strtoupper($type) . ")", $fid]);
-                $cat_map[$type]['default'] = $pdo->lastInsertId();
-            }
+
+            // Catégorie par défaut si aucune reçue
+            $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (" . strtoupper($type) . ")", $fid]);
+            $default_cat_id = $pdo->lastInsertId();
+            $cat_map[$type]['default'] = $default_cat_id;
         }
 
         $types_streams = [
@@ -104,57 +121,70 @@ foreach ($fournisseurs as $f) {
         foreach ($types_streams as $action => $type) {
             echo "Téléchargement des flux ($type)... ";
             flush();
-            $json = fetch_data_stream("$baseUrl&action=$action");
-            if ($json) {
-                $streams = json_decode($json, true);
-                if (is_array($streams)) {
-                    $pdo->beginTransaction();
-                    $count = 0;
-                    $default_cat = reset($cat_map[$type]) ?: 1;
+            
+            $resp = fetch_data_stream("$baseUrl&action=$action");
+            if (is_array($resp) && isset($resp['error'])) {
+                echo "<span style='color:red;'>ÉCHEC : " . $resp['error'] . "</span><br>";
+                continue;
+            }
 
-                    foreach ($streams as $s) {
-                        $name = $s['name'] ?? '';
-                        $icon = $s['stream_icon'] ?? $s['cover'] ?? '';
-                        $remote_cat = trim((string)($s['category_id'] ?? ''));
-                        $source_id = $s['stream_id'] ?? $s['series_id'] ?? '';
+            $streams = json_decode($resp, true);
+            if (is_array($streams)) {
+                $pdo->beginTransaction();
+                $count = 0;
+                $fallback_cat = $cat_map[$type]['default'];
 
-                        $local_cat = $cat_map[$type][$remote_cat] ?? $default_cat;
+                foreach ($streams as $s) {
+                    $name = $s['name'] ?? '';
+                    $icon = $s['stream_icon'] ?? $s['cover'] ?? '';
+                    $remote_cat = trim((string)($s['category_id'] ?? ''));
+                    $source_id = $s['stream_id'] ?? $s['series_id'] ?? '';
 
-                        if ($name && $source_id) {
-                            try {
-                                $stmt_insert_stream->execute([$fid, $name, $icon, $type, $local_cat, $source_id]);
-                                $count++;
-                                if ($count % 500 === 0) {
-                                    $pdo->commit();
-                                    $pdo->beginTransaction();
-                                }
-                            } catch (Exception $e) {}
-                        }
+                    // Si la catégorie distante existe, on l'associe, sinon fallback vers catégorie par défaut
+                    $local_cat = isset($cat_map[$type][$remote_cat]) ? $cat_map[$type][$remote_cat] : $fallback_cat;
+
+                    if ($name && $source_id) {
+                        try {
+                            $stmt_insert_stream->execute([$fid, $name, $icon, $type, $local_cat, $source_id]);
+                            $count++;
+                            if ($count % 500 === 0) {
+                                $pdo->commit();
+                                $pdo->beginTransaction();
+                            }
+                        } catch (Exception $e) {}
                     }
-                    $pdo->commit();
-                    echo "OK ($count éléments)<br>";
-                    flush();
                 }
+                $pdo->commit();
+                echo "<b style='color:green;'>OK ($count éléments insérés)</b><br>";
+                flush();
+            } else {
+                echo "<span style='color:red;'>ÉCHEC (JSON nul ou vide)</span><br>";
             }
         }
-        echo "✔ Xtream importé.<br><hr>";
+        echo "<hr>";
         flush();
     } 
 
     // ==========================================
-    // 2. IMPORTATION STALKER (MAG)
+    // 2. IMPORTATION STALKER
     // ==========================================
     elseif ($f['type'] === 'stalker') {
         $portalUrl = rtrim($f['url_base'], '/');
         $mac = $f['mac_address'] ?? '';
 
         if (empty($mac)) {
-            echo "❌ Erreur : Adresse MAC manquante.<br><hr>";
+            echo "<p style='color:red;'>❌ Erreur : Adresse MAC manquante.</p><hr>";
             continue;
         }
 
         $handshakeUrl = "$portalUrl/c/portal.php?type=stb&action=handshake&mac=" . urlencode($mac);
         $handshakeResp = fetch_data_stream($handshakeUrl);
+        
+        if (is_array($handshakeResp) && isset($handshakeResp['error'])) {
+            echo "<p style='color:red;'>❌ Handshake Stalker échoué : " . $handshakeResp['error'] . "</p><hr>";
+            continue;
+        }
+
         $handshakeData = json_decode($handshakeResp, true);
         $token = $handshakeData['js']['token'] ?? '';
 
@@ -163,8 +193,6 @@ foreach ($fournisseurs as $f) {
         $headers[] = "Cookie: mac=" . urlencode($mac) . "; stb_lang=fr; timezone=Europe/Paris";
 
         $cat_map = [];
-
-        // Création forcée d'une catégorie par défaut pour éviter tout crash 'category_id'
         $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (Stalker)", $fid]); 
         $default_cat_id = $pdo->lastInsertId();
 
@@ -203,7 +231,6 @@ foreach ($fournisseurs as $f) {
                 $remote_cat = (string)($ch['tv_genre_id'] ?? $ch['genre_id'] ?? $ch['category_id'] ?? '');
                 $cmd = $ch['cmd'] ?? '';
                 
-                // Affecte la catégorie spécifique ou la catégorie par défaut (garantit category_id NOT NULL)
                 $local_cat = !empty($cat_map[$remote_cat]) ? $cat_map[$remote_cat] : $default_cat_id;
 
                 if ($name && $cmd) {
@@ -218,13 +245,13 @@ foreach ($fournisseurs as $f) {
                 }
             }
             $pdo->commit();
-            echo "OK ($count chaînes Stalker)<br>";
+            echo "<b style='color:green;'>✔ Stalker importé ($count chaînes)</b><br><hr>";
             flush();
+        } else {
+            echo "<p style='color:red;'>❌ Impossible d'extraire les chaînes Stalker (Réponse vide ou token expiré).</p><hr>";
         }
-        echo "✔ Stalker importé.<br><hr>";
-        flush();
     }
 }
 
-echo "<br><b>✅ Importation terminée avec succès !</b>";
+echo "<br><b>✅ Processus terminé.</b>";
 ?>
