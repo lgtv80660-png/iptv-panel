@@ -1,0 +1,20 @@
+Options -MultiViews
+RewriteEngine On
+
+# On s'assure que la réécriture s'applique à partir de la racine du VirtualHost
+RewriteBase /
+
+# 1. Redirection pour les chaînes en direct (Live TV)
+# Transforme : /live/USER/PASS/STREAM_ID.ts
+# Vers       : live.php?username=USER&password=PASS&stream=STREAM_ID&extension=ts
+RewriteRule ^live/([^/]+)/([^/]+)/([^/]+)\.(ts|m3u8)$ live.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
+
+# 2. Redirection pour les films (VOD)
+# Transforme : /movie/USER/PASS/STREAM_ID.mp4
+# Vers       : vod.php?username=USER&password=PASS&stream=STREAM_ID&extension=mp4
+RewriteRule ^movie/([^/]+)/([^/]+)/([^/]+)\.(mp4|mkv|avi|m3u8)$ vod.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
+
+# 3. Redirection pour les séries
+# Transforme : /series/USER/PASS/STREAM_ID.mp4
+# Vers       : series.php?username=USER&password=PASS&stream=STREAM_ID&extension=mp4
+RewriteRule ^series/([^/]+)/([^/]+)/([^/]+)\.(mp4|mkv|avi|m3u8)$ series.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
