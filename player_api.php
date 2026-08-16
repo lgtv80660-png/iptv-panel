@@ -17,7 +17,7 @@ $pass = isset($_REQUEST['password']) ? trim($_REQUEST['password']) : '';
 $action = isset($_REQUEST['action']) ? $_REQUEST['action'] : 'user_info';
 $cat_id = isset($_REQUEST['category_id']) ? $_REQUEST['category_id'] : '';
 
-// --- AUTHENTIFICATION CLIENT VIA LA BASE DE DONNÉES ---
+// AUTHENTIFICATION CLIENT
 $stmt = $pdo->prepare("SELECT * FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
 $stmt->execute([$user, $pass]);
 $client = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -27,7 +27,6 @@ if (!$client) {
     exit; 
 }
 
-// --- FONCTION PROXY CURL ---
 function fetch_data_proxy($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -43,9 +42,9 @@ function fetch_data_proxy($url) {
     return $result;
 }
 
-// ==========================================
-// 1. GESTION DES CHAÎNES EN DIRECT (LIVE)
-// ==========================================
+$base_proxy_url = "https://" . $_SERVER['HTTP_HOST'];
+
+// --- LIVE ---
 if ($action === 'get_live_categories') {
     $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'live' AND c.visible = 1 AND s.visible = 1");
     $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -60,21 +59,11 @@ if ($action === 'get_live_categories') {
 } 
 elseif ($action === 'get_live_streams') {
     if ($cat_id !== '' && $cat_id !== 'all' && $cat_id !== '0') {
-        $stmt = $pdo->prepare("
-            SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id 
-            FROM streams s 
-            INNER JOIN categories c ON s.category_id = c.category_id 
-            WHERE s.stream_type = 'live' AND s.visible = 1 AND c.visible = 1 AND s.category_id = ?
-        ");
+        $stmt = $pdo->prepare("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'live' AND s.visible = 1 AND c.visible = 1 AND s.category_id = ?");
         $stmt->execute([$cat_id]);
         $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $streams = $pdo->query("
-            SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id 
-            FROM streams s 
-            INNER JOIN categories c ON s.category_id = c.category_id 
-            WHERE s.stream_type = 'live' AND s.visible = 1 AND c.visible = 1
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        $streams = $pdo->query("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'live' AND s.visible = 1 AND c.visible = 1")->fetchAll(PDO::FETCH_ASSOC);
     }
     
     $result = array_map(function($s) {
@@ -96,9 +85,7 @@ elseif ($action === 'get_live_streams') {
     echo json_encode($result);
 } 
 
-// ==========================================
-// 2. GESTION DES FILMS (VOD)
-// ==========================================
+// --- VOD ---
 elseif ($action === 'get_vod_categories') {
     $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'movie' AND c.visible = 1 AND s.visible = 1");
     $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -113,26 +100,14 @@ elseif ($action === 'get_vod_categories') {
 }
 elseif ($action === 'get_vod_streams') {
     if ($cat_id !== '' && $cat_id !== 'all' && $cat_id !== '0') {
-        $stmt = $pdo->prepare("
-            SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id, s.direct_source 
-            FROM streams s 
-            INNER JOIN categories c ON s.category_id = c.category_id 
-            WHERE s.stream_type = 'movie' AND s.visible = 1 AND c.visible = 1 AND s.category_id = ?
-        ");
+        $stmt = $pdo->prepare("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id, s.direct_source FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'movie' AND s.visible = 1 AND c.visible = 1 AND s.category_id = ?");
         $stmt->execute([$cat_id]);
         $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $streams = $pdo->query("
-            SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id, s.direct_source 
-            FROM streams s 
-            INNER JOIN categories c ON s.category_id = c.category_id 
-            WHERE s.stream_type = 'movie' AND s.visible = 1 AND c.visible = 1
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        $streams = $pdo->query("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id, s.direct_source FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'movie' AND s.visible = 1 AND c.visible = 1")->fetchAll(PDO::FETCH_ASSOC);
     }
-    
-    $proxy_base = "https://" . $_SERVER['HTTP_HOST'];
 
-    $result = array_map(function($s) use ($proxy_base, $user, $pass) {
+    $result = array_map(function($s) use ($base_proxy_url, $user, $pass) {
         return [
             'num' => 1, 
             'name' => (string)$s['stream_name'], 
@@ -152,7 +127,7 @@ elseif ($action === 'get_vod_streams') {
             'category_id' => (string)($s['category_id'] ?? '1'), 
             'container_extension' => 'mp4', 
             'custom_sid' => '', 
-            'direct_source' => $proxy_base . '/vod.php?username=' . urlencode($user) . '&password=' . urlencode($pass) . '&stream=' . $s['stream_id'] . '&extension=mp4'
+            'direct_source' => $base_proxy_url . '/vod.php?username=' . urlencode($user) . '&password=' . urlencode($pass) . '&stream=' . $s['stream_id'] . '&extension=mp4'
         ];
     }, $streams);
     
@@ -160,9 +135,7 @@ elseif ($action === 'get_vod_streams') {
     exit;
 }
 
-// ==========================================
-// 3. GESTION DES SÉRIES & ÉPISODES
-// ==========================================
+// --- SERIES ---
 elseif ($action === 'get_series_categories') {
     $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'series' AND c.visible = 1 AND s.visible = 1");
     $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -177,21 +150,11 @@ elseif ($action === 'get_series_categories') {
 }
 elseif ($action === 'get_series') {
     if ($cat_id !== '' && $cat_id !== 'all' && $cat_id !== '0') {
-        $stmt = $pdo->prepare("
-            SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id 
-            FROM streams s 
-            INNER JOIN categories c ON s.category_id = c.category_id 
-            WHERE s.stream_type = 'series' AND s.visible = 1 AND c.visible = 1 AND s.category_id = ?
-        ");
+        $stmt = $pdo->prepare("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'series' AND s.visible = 1 AND c.visible = 1 AND s.category_id = ?");
         $stmt->execute([$cat_id]);
         $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $streams = $pdo->query("
-            SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id 
-            FROM streams s 
-            INNER JOIN categories c ON s.category_id = c.category_id 
-            WHERE s.stream_type = 'series' AND s.visible = 1 AND c.visible = 1
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        $streams = $pdo->query("SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id FROM streams s INNER JOIN categories c ON s.category_id = c.category_id WHERE s.stream_type = 'series' AND s.visible = 1 AND c.visible = 1")->fetchAll(PDO::FETCH_ASSOC);
     }
     
     $result = array_map(function($s) {
@@ -268,9 +231,7 @@ elseif ($action === 'get_series_info') {
     exit;
 }
 
-// ==========================================
-// 4. RÉPONSE D'AUTHENTIFICATION HTTPS FORCÉE
-// ==========================================
+// AUTHENTIFICATION DEFAULT
 else {
     $host = $_SERVER['HTTP_HOST'];
 
