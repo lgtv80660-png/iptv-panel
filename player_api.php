@@ -282,6 +282,14 @@ elseif ($action === 'get_series_info') {
             $ep['stream_id'] = (string)$local_ep_id;
             $ep['container_extension'] = $ep_ext;
             $ep['custom_sid'] = '';
+
+            // Local playable URL. Some Xtream clients prefer direct_source
+            // instead of constructing /series/... themselves.
+            $ep['direct_source'] = $base_proxy_url . '/series/'
+                . rawurlencode($user) . '/'
+                . rawurlencode($pass) . '/'
+                . rawurlencode((string)$local_ep_id) . '.'
+                . $ep_ext;
         }
         unset($ep);
     }
