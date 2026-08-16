@@ -27,7 +27,7 @@ function fetch_data_stream($url, $headers = []) {
     if (!empty($headers)) {
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     }
-    curl_setopt($ch, CURLOPT_TIMEOUT, 25); // Timeout court pour éviter le blocage Railway
+    curl_setopt($ch, CURLOPT_TIMEOUT, 25);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
     
     $result = curl_exec($ch);
@@ -35,7 +35,7 @@ function fetch_data_stream($url, $headers = []) {
     return $result;
 }
 
-// Mise à jour de la structure BDD
+// Validation de la structure BDD
 try { $pdo->query("ALTER TABLE categories ADD COLUMN visible TINYINT(1) DEFAULT 1"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE streams ADD COLUMN visible TINYINT(1) DEFAULT 1"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE streams ADD COLUMN fournisseur_id INT"); } catch(Exception $e){}
@@ -56,6 +56,9 @@ foreach ($fournisseurs as $f) {
     $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ?")->execute([$fid]);
     $pdo->prepare("DELETE FROM categories WHERE fournisseur_id = ?")->execute([$fid]);
 
+    // ==========================================
+    // 1. IMPORTATION XTREAM CODES
+    // ==========================================
     if ($f['type'] === 'xtream') {
         $baseUrl = sprintf("%s/player_api.php?username=%s&password=%s", rtrim($f['url_base'], '/'), $f['user'], $f['pass']);
         $cat_map = ['live' => [], 'movie' => [], 'series' => []]; 
@@ -85,6 +88,11 @@ foreach ($fournisseurs as $f) {
                     }
                 }
             }
+            // Création d'une catégorie par défaut si vide
+            if (empty($cat_map[$type])) {
+                $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (" . strtoupper($type) . ")", $fid]);
+                $cat_map[$type]['default'] = $pdo->lastInsertId();
+            }
         }
 
         $types_streams = [
@@ -102,14 +110,17 @@ foreach ($fournisseurs as $f) {
                 if (is_array($streams)) {
                     $pdo->beginTransaction();
                     $count = 0;
+                    $default_cat = reset($cat_map[$type]) ?: 1;
+
                     foreach ($streams as $s) {
                         $name = $s['name'] ?? '';
                         $icon = $s['stream_icon'] ?? $s['cover'] ?? '';
-                        $remote_cat = trim((string)($s['category_id'] ?? '1'));
+                        $remote_cat = trim((string)($s['category_id'] ?? ''));
                         $source_id = $s['stream_id'] ?? $s['series_id'] ?? '';
 
-                        if ($name && $source_id && isset($cat_map[$type][$remote_cat])) {
-                            $local_cat = $cat_map[$type][$remote_cat];
+                        $local_cat = $cat_map[$type][$remote_cat] ?? $default_cat;
+
+                        if ($name && $source_id) {
                             try {
                                 $stmt_insert_stream->execute([$fid, $name, $icon, $type, $local_cat, $source_id]);
                                 $count++;
@@ -129,6 +140,10 @@ foreach ($fournisseurs as $f) {
         echo "✔ Xtream importé.<br><hr>";
         flush();
     } 
+
+    // ==========================================
+    // 2. IMPORTATION STALKER (MAG)
+    // ==========================================
     elseif ($f['type'] === 'stalker') {
         $portalUrl = rtrim($f['url_base'], '/');
         $mac = $f['mac_address'] ?? '';
@@ -148,6 +163,10 @@ foreach ($fournisseurs as $f) {
         $headers[] = "Cookie: mac=" . urlencode($mac) . "; stb_lang=fr; timezone=Europe/Paris";
 
         $cat_map = [];
+
+        // Création forcée d'une catégorie par défaut pour éviter tout crash 'category_id'
+        $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (Stalker)", $fid]); 
+        $default_cat_id = $pdo->lastInsertId();
 
         $genresUrl = "$portalUrl/c/portal.php?type=itv&action=get_genres";
         $genresResp = fetch_data_stream($genresUrl, $headers);
@@ -169,9 +188,6 @@ foreach ($fournisseurs as $f) {
             }
         }
 
-        $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (Stalker)", $fid]); 
-        $default_cat_id = $pdo->lastInsertId();
-
         $channelsUrl = "$portalUrl/c/portal.php?type=itv&action=get_all_channels";
         $channelsResp = fetch_data_stream($channelsUrl, $headers);
         $channelsData = json_decode($channelsResp, true);
@@ -186,7 +202,9 @@ foreach ($fournisseurs as $f) {
                 $icon = $ch['logo'] ?? '';
                 $remote_cat = (string)($ch['tv_genre_id'] ?? $ch['genre_id'] ?? $ch['category_id'] ?? '');
                 $cmd = $ch['cmd'] ?? '';
-                $local_cat = $cat_map[$remote_cat] ?? $default_cat_id;
+                
+                // Affecte la catégorie spécifique ou la catégorie par défaut (garantit category_id NOT NULL)
+                $local_cat = !empty($cat_map[$remote_cat]) ? $cat_map[$remote_cat] : $default_cat_id;
 
                 if ($name && $cmd) {
                     try {
