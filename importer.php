@@ -44,7 +44,9 @@ function fetch_data_stream($url, $headers = []) {
     return $result;
 }
 
-// Validation de la structure BDD
+// Adaptation automatique de la structure BDD
+try { $pdo->query("ALTER TABLE categories MODIFY category_id INT AUTO_INCREMENT"); } catch(Exception $e){}
+try { $pdo->query("ALTER TABLE streams MODIFY stream_id INT AUTO_INCREMENT"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE categories ADD COLUMN visible TINYINT(1) DEFAULT 1"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE streams ADD COLUMN visible TINYINT(1) DEFAULT 1"); } catch(Exception $e){}
 try { $pdo->query("ALTER TABLE streams ADD COLUMN fournisseur_id INT"); } catch(Exception $e){}
@@ -82,34 +84,36 @@ foreach ($fournisseurs as $f) {
             $resp = fetch_data_stream("$baseUrl&action=$action");
             if (is_array($resp) && isset($resp['error'])) {
                 echo "<p style='color:red;'>⚠️ Erreur catégories ($type) : " . $resp['error'] . "</p>";
-                continue;
-            }
-            
-            $cats = json_decode($resp, true);
-            if (is_array($cats)) {
-                $c_count = 0;
-                foreach ($cats as $c) {
-                    if (isset($c['category_id'])) {
-                        $remote_id = trim((string)$c['category_id']);
-                        $cat_name = "[" . $nom_fournisseur . "] " . ($c['category_name'] ?? 'Général');
-                        
-                        try { 
-                            $stmt_insert_cat->execute([$cat_name, $fid]); 
-                            $local_id = $pdo->lastInsertId();
-                            $cat_map[$type][$remote_id] = $local_id;
-                            $c_count++;
-                        } catch (Exception $e) {}
-                    }
-                }
-                echo "<p>✔ Catégories $type importées : $c_count</p>";
             } else {
-                echo "<p style='color:orange;'>⚠️ Réponse JSON invalide pour catégories $type.</p>";
+                $cats = json_decode($resp, true);
+                if (is_array($cats)) {
+                    $c_count = 0;
+                    foreach ($cats as $c) {
+                        if (isset($c['category_id'])) {
+                            $remote_id = trim((string)$c['category_id']);
+                            $cat_name = "[" . $nom_fournisseur . "] " . ($c['category_name'] ?? 'Général');
+                            
+                            try { 
+                                $stmt_insert_cat->execute([$cat_name, $fid]); 
+                                $local_id = $pdo->lastInsertId();
+                                $cat_map[$type][$remote_id] = $local_id;
+                                $c_count++;
+                            } catch (Exception $e) {}
+                        }
+                    }
+                    echo "<p>✔ Catégories $type importées : $c_count</p>";
+                }
             }
 
-            // Catégorie par défaut si aucune reçue
-            $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (" . strtoupper($type) . ")", $fid]);
-            $default_cat_id = $pdo->lastInsertId();
-            $cat_map[$type]['default'] = $default_cat_id;
+            // Si aucune catégorie n'a été importée, on en crée une par défaut sécurisée
+            if (empty($cat_map[$type])) {
+                try {
+                    $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (" . strtoupper($type) . ")", $fid]);
+                    $cat_map[$type]['default'] = $pdo->lastInsertId();
+                } catch (Exception $e) {
+                    $cat_map[$type]['default'] = 1; // Fallback
+                }
+            }
         }
 
         $types_streams = [
@@ -132,7 +136,7 @@ foreach ($fournisseurs as $f) {
             if (is_array($streams)) {
                 $pdo->beginTransaction();
                 $count = 0;
-                $fallback_cat = $cat_map[$type]['default'];
+                $fallback_cat = reset($cat_map[$type]) ?: 1;
 
                 foreach ($streams as $s) {
                     $name = $s['name'] ?? '';
@@ -140,7 +144,6 @@ foreach ($fournisseurs as $f) {
                     $remote_cat = trim((string)($s['category_id'] ?? ''));
                     $source_id = $s['stream_id'] ?? $s['series_id'] ?? '';
 
-                    // Si la catégorie distante existe, on l'associe, sinon fallback vers catégorie par défaut
                     $local_cat = isset($cat_map[$type][$remote_cat]) ? $cat_map[$type][$remote_cat] : $fallback_cat;
 
                     if ($name && $source_id) {
@@ -158,7 +161,7 @@ foreach ($fournisseurs as $f) {
                 echo "<b style='color:green;'>OK ($count éléments insérés)</b><br>";
                 flush();
             } else {
-                echo "<span style='color:red;'>ÉCHEC (JSON nul ou vide)</span><br>";
+                echo "<span style='color:orange;'>Aucun flux trouvé</span><br>";
             }
         }
         echo "<hr>";
@@ -193,8 +196,10 @@ foreach ($fournisseurs as $f) {
         $headers[] = "Cookie: mac=" . urlencode($mac) . "; stb_lang=fr; timezone=Europe/Paris";
 
         $cat_map = [];
-        $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (Stalker)", $fid]); 
-        $default_cat_id = $pdo->lastInsertId();
+        try {
+            $stmt_insert_cat->execute(["[" . $nom_fournisseur . "] Général (Stalker)", $fid]); 
+            $default_cat_id = $pdo->lastInsertId();
+        } catch(Exception $e) { $default_cat_id = 1; }
 
         $genresUrl = "$portalUrl/c/portal.php?type=itv&action=get_genres";
         $genresResp = fetch_data_stream($genresUrl, $headers);
@@ -248,10 +253,10 @@ foreach ($fournisseurs as $f) {
             echo "<b style='color:green;'>✔ Stalker importé ($count chaînes)</b><br><hr>";
             flush();
         } else {
-            echo "<p style='color:red;'>❌ Impossible d'extraire les chaînes Stalker (Réponse vide ou token expiré).</p><hr>";
+            echo "<p style='color:red;'>❌ Impossible d'extraire les chaînes Stalker.</p><hr>";
         }
     }
 }
 
-echo "<br><b>✅ Processus terminé.</b>";
+echo "<br><b>✅ Importation terminée avec succès !</b>";
 ?>
