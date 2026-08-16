@@ -17,7 +17,7 @@ $pass = isset($_REQUEST['password']) ? trim($_REQUEST['password']) : '';
 $action = isset($_REQUEST['action']) ? $_REQUEST['action'] : 'user_info';
 $cat_id = isset($_REQUEST['category_id']) ? $_REQUEST['category_id'] : '';
 
-// Authentification client via BDD
+// --- AUTHENTIFICATION CLIENT VIA LA BASE DE DONNÉES ---
 $stmt = $pdo->prepare("SELECT * FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
 $stmt->execute([$user, $pass]);
 $client = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -27,6 +27,7 @@ if (!$client) {
     exit; 
 }
 
+// --- FONCTION PROXY CURL ---
 function fetch_data_proxy($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -45,7 +46,7 @@ function fetch_data_proxy($url) {
 $base_proxy_url = "https://" . $_SERVER['HTTP_HOST'];
 
 // ==========================================
-// 1. CHAÎNES EN DIRECT (LIVE)
+// 1. GESTION DES CHAÎNES EN DIRECT (LIVE)
 // ==========================================
 if ($action === 'get_live_categories') {
     $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'live' AND c.visible = 1 AND s.visible = 1");
@@ -88,7 +89,7 @@ elseif ($action === 'get_live_streams') {
 } 
 
 // ==========================================
-// 2. FILMS (VOD)
+// 2. GESTION DES FILMS (VOD)
 // ==========================================
 elseif ($action === 'get_vod_categories') {
     $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'movie' AND c.visible = 1 AND s.visible = 1");
@@ -140,7 +141,7 @@ elseif ($action === 'get_vod_streams') {
 }
 
 // ==========================================
-// 3. SÉRIES & ÉPISODES
+// 3. GESTION DES SÉRIES & ÉPISODES
 // ==========================================
 elseif ($action === 'get_series_categories') {
     $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'series' AND c.visible = 1 AND s.visible = 1");
@@ -210,7 +211,7 @@ elseif ($action === 'get_series_info') {
                                 $remote_ep_id = $ep['id'];
                                 $ep_title = $ep['title'] ?? 'Episode';
                                 $ep_icon = $ep['info']['movie_image'] ?? $series['stream_icon'] ?? '';
-                                $ep_ext = $ep['container_extension'] ?? 'mp4';
+                                $ep_ext = !empty($ep['container_extension']) ? $ep['container_extension'] : 'mp4';
 
                                 $stmt_check->execute([$series['fournisseur_id'], $remote_ep_id]);
                                 $existing = $stmt_check->fetch(PDO::FETCH_ASSOC);
@@ -222,11 +223,9 @@ elseif ($action === 'get_series_info') {
                                     $local_ep_id = $pdo->lastInsertId(); 
                                 }
                                 
-                                // On modifie l'ID et l'extension pour forcer le passage par le proxy local
                                 $data['episodes'][$season_key][$ep_index]['id'] = (string)$local_ep_id;
                                 $data['episodes'][$season_key][$ep_index]['container_extension'] = $ep_ext;
                                 $data['episodes'][$season_key][$ep_index]['custom_sid'] = '';
-                                $data['episodes'][$season_key][$ep_index]['direct_source'] = $base_proxy_url . '/series.php?username=' . urlencode($user) . '&password=' . urlencode($pass) . '&stream=' . $local_ep_id . '&extension=' . $ep_ext;
                             }
                         }
                     }
@@ -240,7 +239,9 @@ elseif ($action === 'get_series_info') {
     exit;
 }
 
-// AUTHENTIFICATION DEFAULT
+// ==========================================
+// 4. RÉPONSE D'AUTHENTIFICATION HTTPS FORCÉE
+// ==========================================
 else {
     $host = $_SERVER['HTTP_HOST'];
 
