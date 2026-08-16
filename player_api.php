@@ -127,13 +127,11 @@ elseif ($action === 'get_vod_streams') {
             FROM streams s 
             INNER JOIN categories c ON s.category_id = c.category_id 
             WHERE s.stream_type = 'movie' AND s.visible = 1 AND c.visible = 1
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        ");
+        $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
-    $base_dir = dirname($_SERVER['PHP_SELF']);
-    if ($base_dir === '\\' || $base_dir === '/') $base_dir = '';
-    $proxy_base = $protocol . "://" . $_SERVER['HTTP_HOST'] . $base_dir;
+    $proxy_base = "https://" . $_SERVER['HTTP_HOST'];
 
     $result = array_map(function($s) use ($proxy_base, $user, $pass) {
         return [
@@ -267,10 +265,9 @@ elseif ($action === 'get_series_info') {
 }
 
 // ==========================================
-// 4. RÉPONSE D'AUTHENTIFICATION DEFAULT (USER_INFO)
+// 4. RÉPONSE D'AUTHENTIFICATION HTTPS FORCÉE
 // ==========================================
 else {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
     $host = $_SERVER['HTTP_HOST'];
 
     echo json_encode([
@@ -284,8 +281,8 @@ else {
         ], 
         'server_info' => [
             'url' => $host, 
-            'port' => ($protocol === 'https' ? '443' : '80'), 
-            'server_protocol' => $protocol
+            'port' => '443', 
+            'server_protocol' => 'https'
         ]
     ]);
 }
