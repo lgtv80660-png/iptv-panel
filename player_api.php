@@ -13,7 +13,6 @@ $pass = isset($_REQUEST['password']) ? trim($_REQUEST['password']) : '';
 $action = isset($_REQUEST['action']) ? $_REQUEST['action'] : 'user_info';
 $cat_id = isset($_REQUEST['category_id']) ? $_REQUEST['category_id'] : '';
 
-// AUTHENTIFICATION 100% SÉCURISÉE VIA LA BASE DE DONNÉES
 $stmt = $pdo->prepare("SELECT * FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
 $stmt->execute([$user, $pass]);
 $client = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -23,7 +22,6 @@ if (!$client) {
     exit; 
 }
 
-// --- FONCTION DE CONTOURNEMENT (PROXY CURL) POUR LES SÉRIES ---
 function fetch_data_proxy($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -39,7 +37,6 @@ function fetch_data_proxy($url) {
     return $result;
 }
 
-// --- LIVE ---
 if ($action === 'get_live_categories') {
     $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'live' AND c.visible = 1 AND s.visible = 1");
     $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -83,8 +80,6 @@ elseif ($action === 'get_live_streams') {
     }, $streams);
     echo json_encode($result);
 } 
-
-// --- VOD (FILMS) ---
 elseif ($action === 'get_vod_categories') {
     $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'movie' AND c.visible = 1 AND s.visible = 1");
     $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -124,9 +119,9 @@ elseif ($action === 'get_vod_streams') {
             'stream_type' => 'movie', 
             'stream_id' => (int)$s['stream_id'], 
             'stream_icon' => (string)($s['stream_icon'] ?? ''), 
-            'plot' => 'Film disponible en streaming via ProxyStream.',
-            'cast' => 'Acteurs non spécifiés',
-            'director' => 'Réalisateur non spécifié',
+            'plot' => 'Film disponible en streaming.',
+            'cast' => 'Non spécifié',
+            'director' => 'Non spécifié',
             'genre' => 'Films VOD',
             'releaseDate' => '2026',
             'rating' => '5.0', 
@@ -143,8 +138,6 @@ elseif ($action === 'get_vod_streams') {
     echo json_encode($result);
     exit;
 }
-
-// --- SERIES ---
 elseif ($action === 'get_series_categories') {
     $stmt = $pdo->query("SELECT DISTINCT c.category_id, c.category_name, c.parent_id FROM categories c INNER JOIN streams s ON c.category_id = s.category_id WHERE s.stream_type = 'series' AND c.visible = 1 AND s.visible = 1");
     $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -162,13 +155,12 @@ elseif ($action === 'get_series') {
         $stmt->execute([$cat_id]);
         $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $stmt = $pdo->query("
+        $streams = $pdo->query("
             SELECT s.stream_id, s.stream_name, s.stream_icon, s.stream_type, s.category_id 
             FROM streams s 
             INNER JOIN categories c ON s.category_id = c.category_id 
             WHERE s.stream_type = 'series' AND s.visible = 1 AND c.visible = 1
-        ");
-        $streams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        ")->fetchAll(PDO::FETCH_ASSOC);
     }
     
     $result = array_map(function($s) {
@@ -202,7 +194,6 @@ elseif ($action === 'get_series_info') {
     
     if ($series && $series['type'] === 'xtream') {
         $remote_url = sprintf("%s/player_api.php?username=%s&password=%s&action=get_series_info&series_id=%s", $series['url_base'], $series['user'], $series['pass'], $series['direct_source']);
-        
         $json = fetch_data_proxy($remote_url);
         
         if ($json) {
@@ -244,6 +235,9 @@ elseif ($action === 'get_series_info') {
     echo json_encode([]);
 }
 else {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+    $host = $_SERVER['HTTP_HOST'];
+
     echo json_encode([
         'user_info' => [
             'username' => $client['username'], 
@@ -254,9 +248,9 @@ else {
             'allowed_output_formats' => ['m3u8','ts']
         ], 
         'server_info' => [
-            'url' => 'localhost', 
-            'port' => '80', 
-            'server_protocol' => 'http'
+            'url' => $host, 
+            'port' => ($protocol === 'https' ? '443' : '80'), 
+            'server_protocol' => $protocol
         ]
     ]);
 }
