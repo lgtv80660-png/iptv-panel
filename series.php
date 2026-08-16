@@ -15,7 +15,7 @@ $pass = isset($_GET['password']) ? trim($_GET['password']) : '';
 $stream_id = isset($_GET['stream']) ? $_GET['stream'] : '';
 $extension = isset($_GET['extension']) && !empty($_GET['extension']) ? $_GET['extension'] : 'mp4';
 
-// 1. Authentification du client
+// 1. Authentification client via la base de données
 $stmt = $pdo->prepare("SELECT id FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1");
 $stmt->execute([$user, $pass]);
 
@@ -24,17 +24,17 @@ if (!$stmt->fetch()) {
     die("Erreur : Authentification échouée.");
 }
 
-// 2. Recherche de l'épisode dans la BDD (table streams)
+// 2. Recherche de l'épisode dans la table streams
 $stmt = $pdo->prepare("SELECT streams.*, fournisseurs.type, fournisseurs.url_base, fournisseurs.user, fournisseurs.pass FROM streams INNER JOIN fournisseurs ON streams.fournisseur_id = fournisseurs.id WHERE stream_id = ?");
 $stmt->execute([$stream_id]);
 $data = $stmt->fetch();
 
 if (!$data) { 
     header('HTTP/1.1 404 Not Found');
-    die("Erreur : Épisode introuvable."); 
+    die("Erreur : Épisode introuvable dans la BDD."); 
 }
 
-// 3. Construction de l'URL finale vers le fournisseur d'origine
+// 3. Construction du lien distant chez le fournisseur
 $url_finale = "";
 
 if ($data['type'] === 'xtream') {
