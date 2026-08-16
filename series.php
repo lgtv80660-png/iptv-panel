@@ -24,7 +24,7 @@ if (!$stmt->fetch()) {
     die("Erreur : Authentification échouée.");
 }
 
-// Recherche de l'épisode ou de la série dans la base de données
+// Recherche de l'épisode ou de la série
 $stmt = $pdo->prepare("SELECT streams.*, fournisseurs.type, fournisseurs.url_base, fournisseurs.user, fournisseurs.pass FROM streams INNER JOIN fournisseurs ON streams.fournisseur_id = fournisseurs.id WHERE stream_id = ?");
 $stmt->execute([$stream_id]);
 $data = $stmt->fetch();
