@@ -220,7 +220,7 @@ if ($mode === 'streams') {
                         
                         <?php if ($mode === 'categories'): ?>
                             <?php foreach ($items as $c): ?>
-                            <tr class="item-row <?= $c['visible'] ? '' : 'row-hidden' ?>" data-type="<?= strtolower($c['main_type'] ?? '') ?>" data-provider="<?= $c['fournisseurs_ids'] ?? '' ?>">
+                            <tr class="item-row category-row <?= $c['visible'] ? '' : 'row-hidden' ?>" data-type="<?= strtolower($c['main_type'] ?? '') ?>" data-provider="<?= $c['fournisseurs_ids'] ?? '' ?>">
                                 <td>
                                     <input class="form-check-input row-checkbox" type="checkbox" value="<?= $c['category_id'] ?>">
                                 </td>

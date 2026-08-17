@@ -38,3 +38,87 @@ html[data-theme="light"] .top-header h4,html[data-theme="light"] .top-header h4 
 html[data-theme="light"] .gp-toolbar{background:rgba(255,255,255,.9);box-shadow:0 12px 30px rgba(25,60,100,.12)}html[data-theme="light"] .gp-lang-select,html[data-theme="light"] .gp-theme-toggle{background:#fff;color:#24364a}
 .gp-rtl .sidebar{right:0;left:auto;border-right:0!important;border-left:1px solid var(--gp-border)!important}.gp-rtl .main-content{margin-left:0!important;margin-right:270px!important}.gp-rtl .sidebar a{text-align:right}.gp-rtl .sidebar a i{margin-left:10px;margin-right:0}.gp-rtl .gp-page-title{flex-direction:row-reverse}.gp-rtl .gp-toolbar{right:auto;left:22px}.gp-rtl .text-end{text-align:left!important}
 @media(max-width:1000px){.gp-rtl .main-content{margin-right:78px!important;margin-left:0!important}}@media(max-width:640px){.gp-toolbar{top:8px;right:8px}.gp-rtl .gp-toolbar{left:8px;right:auto}.gp-rtl .main-content{margin-right:0!important}.gp-lang-select{min-width:95px}.gp-theme-text{display:none}}
+
+
+/* G-PANEL V6.2 — dark/light contrast and Persian/Farsi support */
+
+/* Dashboard KPI contrast */
+html[data-theme="dark"] .stat-card h3,
+html[data-theme="dark"] .stat-card p {
+    color: #f4f8ff !important;
+}
+html[data-theme="dark"] .stat-card p {
+    color: #9eb0c5 !important;
+}
+html[data-theme="light"] .stat-card h3 {
+    color: #142235 !important;
+}
+html[data-theme="light"] .stat-card p {
+    color: #53667b !important;
+}
+
+/* Native language dropdown: keep options readable in dark mode */
+.gp-lang-select,
+.gp-lang-select:focus {
+    color: var(--gp-text) !important;
+    background-color: #0b1527 !important;
+    color-scheme: dark;
+}
+.gp-lang-select option {
+    background-color: #0b1527 !important;
+    color: #eef6ff !important;
+}
+html[data-theme="light"] .gp-lang-select,
+html[data-theme="light"] .gp-lang-select:focus {
+    background-color: #ffffff !important;
+    color: #24364a !important;
+    color-scheme: light;
+}
+html[data-theme="light"] .gp-lang-select option {
+    background-color: #ffffff !important;
+    color: #24364a !important;
+}
+
+/* Editor category rows: darker neutral gray in LIGHT mode */
+html[data-theme="light"] .category-row td {
+    background: #e1e6ec !important;
+    color: #263548 !important;
+    border-bottom-color: #c9d1da !important;
+}
+html[data-theme="light"] .category-row:hover td {
+    background: #d7dee6 !important;
+}
+html[data-theme="light"] .category-row .folder-link {
+    color: #263548 !important;
+    font-weight: 700;
+}
+html[data-theme="light"] .category-row .folder-link:hover {
+    color: #0d63d8 !important;
+}
+html[data-theme="light"] .category-row .folder-icon {
+    color: #d29a00 !important;
+}
+html[data-theme="light"] .category-row .badge.bg-secondary {
+    background: #66717d !important;
+    color: #ffffff !important;
+}
+
+/* Editor category rows in DARK mode */
+html[data-theme="dark"] .category-row td {
+    background: rgba(9,20,35,.48) !important;
+}
+html[data-theme="dark"] .category-row:hover td {
+    background: rgba(22,119,255,.09) !important;
+}
+
+/* Better RTL typography */
+.gp-rtl,
+.gp-rtl body,
+.gp-rtl .form-control,
+.gp-rtl .form-select,
+.gp-rtl .gp-lang-select {
+    font-family: Tahoma, "Segoe UI", Arial, sans-serif !important;
+}
+.gp-rtl .sidebar a {
+    direction: rtl;
+}
