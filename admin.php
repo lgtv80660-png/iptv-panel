@@ -68,7 +68,7 @@ if (!isset($_SESSION['admin_logged']) || $_SESSION['admin_logged'] !== true):
                 <label class="form-label text-muted" style="font-size:12px; text-transform:uppercase;">Mot de passe</label>
                 <input type="password" name="password" class="form-control" required>
             </div>
-            <button type="submit" name="login_btn" class="btn btn-primary w-100">Se connecter</button>
+            <button type="submit" name="login_btn" class="btn-primary w-100">Se connecter</button>
         </form>
     </div>
 <script src="assets/gpanel-ui.js"></script>
@@ -123,9 +123,10 @@ if (isset($_POST['add_source'])) {
     $user = $_POST['user'] ?? null;
     $pass = $_POST['pass'] ?? null;
     $mac_address = $_POST['mac_address'] ?? null;
+    $proxy = $_POST['proxy'] ?? null;
 
-    $stmt = $pdo->prepare("INSERT INTO fournisseurs (nom, type, url_base, user, pass, mac_address) VALUES (?, ?, ?, ?, ?, ?)");
-    if($stmt->execute([$nom, $type, $url_base, $user, $pass, $mac_address])) {
+    $stmt = $pdo->prepare("INSERT INTO fournisseurs (nom, type, url_base, user, pass, mac_address, proxy) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    if($stmt->execute([$nom, $type, $url_base, $user, $pass, $mac_address, $proxy])) {
         // Après création, importer uniquement cette nouvelle source.
         $new_source_id = (int)$pdo->lastInsertId();
         header("Location: importer.php?fournisseur_id=" . $new_source_id);
@@ -135,8 +136,8 @@ if (isset($_POST['add_source'])) {
 
 // --- MODIFICATION SOURCE ---
 if (isset($_POST['edit_source_btn'])) {
-    $stmt = $pdo->prepare("UPDATE fournisseurs SET nom = ?, url_base = ?, user = ?, pass = ?, mac_address = ? WHERE id = ?");
-    if($stmt->execute([$_POST['edit_nom'], $_POST['edit_url'], $_POST['edit_user'], $_POST['edit_pass'], $_POST['edit_mac_address'] ?? null, $_POST['source_id']])) {
+    $stmt = $pdo->prepare("UPDATE fournisseurs SET nom = ?, url_base = ?, user = ?, pass = ?, mac_address = ?, proxy = ? WHERE id = ?");
+    if($stmt->execute([$_POST['edit_nom'], $_POST['edit_url'], $_POST['edit_user'], $_POST['edit_pass'], $_POST['edit_mac_address'] ?? null, $_POST['edit_proxy'] ?? null, $_POST['source_id']])) {
         header("Location: admin.php?success=updated"); exit;
     }
 }
@@ -307,10 +308,17 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                             </div>
                         </div>
 
-                        <!-- Champ pour Stalker (Adresse MAC) -->
-                        <div class="mb-3" id="auth_fields_stalker" style="display: none;">
-                            <label class="form-label">Adresse MAC</label>
-                            <input type="text" name="mac_address" class="form-control" placeholder="00:1A:79:XX:XX:XX">
+                        <!-- Champ pour Stalker (Adresse MAC et Proxy) -->
+                        <div id="auth_fields_stalker" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Adresse MAC</label>
+                                <input type="text" name="mac_address" class="form-control" placeholder="00:1A:79:XX:XX:XX">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-warning"><i class="fas fa-shield-alt"></i> Proxy HTTP (Optionnel)</label>
+                                <input type="text" name="proxy" class="form-control" placeholder="IP:PORT ou IP:PORT:USER:PASS">
+                                <div class="form-text text-muted">Contourne le blocage IP des fournisseurs Stalker.</div>
+                            </div>
                         </div>
 
                         <button type="submit" name="add_source" class="btn btn-primary w-100"><i class="fas fa-save me-2"></i>Enregistrer la source</button>
@@ -383,12 +391,15 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                                         <?php if (strtolower($f['type']) === 'stalker' && !empty($f['mac_address'])): ?>
                                             <div><small class="text-info"><i class="fas fa-network-wired me-1"></i><?= htmlspecialchars($f['mac_address']) ?></small></div>
                                         <?php endif; ?>
+                                        <?php if (!empty($f['proxy'])): ?>
+                                            <div><small class="text-warning"><i class="fas fa-shield-alt me-1"></i>Proxy Activé</small></div>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="text-end">
                                         <a href="importer.php?fournisseur_id=<?= (int)$f['id'] ?>" class="btn btn-sm btn-outline-success me-2" target="_self" title="Importer / actualiser uniquement cette source">
                                             <i class="fas fa-sync-alt"></i>
                                         </a>
-                                        <button class="btn btn-sm btn-outline-info me-2" onclick="editSourceModal('<?= $f['id'] ?>', '<?= addslashes(htmlspecialchars($f['nom'])) ?>', '<?= addslashes(htmlspecialchars($f['url_base'])) ?>', '<?= addslashes(htmlspecialchars($f['user'])) ?>', '<?= addslashes(htmlspecialchars($f['pass'])) ?>', '<?= addslashes(htmlspecialchars($f['mac_address'] ?? '')) ?>')">
+                                        <button class="btn btn-sm btn-outline-info me-2" onclick="editSourceModal('<?= $f['id'] ?>', '<?= addslashes(htmlspecialchars($f['nom'])) ?>', '<?= addslashes(htmlspecialchars($f['url_base'])) ?>', '<?= addslashes(htmlspecialchars($f['user'])) ?>', '<?= addslashes(htmlspecialchars($f['pass'])) ?>', '<?= addslashes(htmlspecialchars($f['mac_address'] ?? '')) ?>', '<?= addslashes(htmlspecialchars($f['proxy'] ?? '')) ?>')">
                                             <i class="fas fa-edit"></i>
                                         </button>
                                         <form method="POST" style="display:inline;" onsubmit="return confirm('⚠️ ATTENTION : Cela supprimera définitivement ce fournisseur ET TOUTES ses chaînes de votre base de données. Continuer ?');">
@@ -450,7 +461,7 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="submit" name="edit_client_btn" class="btn btn-primary">Enregistrer</button>
+                <button type="submit" name="edit_client_btn" class="btn-primary">Enregistrer</button>
               </div>
           </form>
         </div>
@@ -489,12 +500,15 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                 <div class="mb-3">
                     <label class="form-label">Adresse MAC Stalker</label>
                     <input type="text" name="edit_mac_address" id="edit_source_mac" class="form-control" placeholder="00:1A:79:XX:XX:XX">
-                    <div class="form-text text-muted">Utilisée uniquement pour les fournisseurs Stalker.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-warning"><i class="fas fa-shield-alt"></i> Proxy HTTP (Optionnel)</label>
+                    <input type="text" name="edit_proxy" id="edit_source_proxy" class="form-control" placeholder="IP:PORT ou IP:PORT:USER:PASS">
                 </div>
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="submit" name="edit_source_btn" class="btn btn-primary">Enregistrer</button>
+                <button type="submit" name="edit_source_btn" class="btn-primary">Enregistrer</button>
               </div>
           </form>
         </div>
@@ -536,13 +550,14 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
             new bootstrap.Modal(document.getElementById('editClientModal')).show();
         }
 
-        function editSourceModal(id, nom, url, user, pass, mac) {
+        function editSourceModal(id, nom, url, user, pass, mac, proxy) {
             document.getElementById('edit_source_id').value = id;
             document.getElementById('edit_source_nom').value = nom;
             document.getElementById('edit_source_url').value = url;
             document.getElementById('edit_source_user').value = user;
             document.getElementById('edit_source_pass').value = pass;
             document.getElementById('edit_source_mac').value = mac || '';
+            document.getElementById('edit_source_proxy').value = proxy || '';
             new bootstrap.Modal(document.getElementById('editSourceModal')).show();
         }
     </script>
