@@ -1,5 +1,5 @@
 <?php
-// V6 - Importation Interactive (Sélection des bouquets avant SQL)
+// V7 - Importation Interactive + Correction Stalker VOD/Series
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -36,7 +36,7 @@ function fetch_data_stream($url, $headers = []) {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => 'IPTV-Panel/6.0',
+        CURLOPT_USERAGENT => 'IPTV-Panel/7.0',
         CURLOPT_ENCODING => '',
         CURLOPT_TIMEOUT => 120,
         CURLOPT_CONNECTTIMEOUT => 20,
@@ -144,10 +144,31 @@ if ($type === 'xtream') {
     if (!$hs['ok']) die('<p style="color:red">❌ Erreur Handshake: '.h($hs['error']).'</p>');
     $token = $hs['token'];
     
+    // 1. DIRECT (Live)
     $genres = stalker_load($portal, $mac, $token, 'itv', 'get_genres', [], $hs['path'], $proxy);
     if ($genres['ok']) $remoteCats['live'] = stalker_js_list($genres['data']);
     $channels = stalker_load($portal, $mac, $token, 'itv', 'get_all_channels', [], $hs['path'], $proxy);
     if ($channels['ok']) $remoteStreams['live'] = stalker_js_list($channels['data']);
+
+    // 2. FILMS (VOD)
+    $vod_cats = stalker_load($portal, $mac, $token, 'vod', 'get_categories', [], $hs['path'], $proxy);
+    if ($vod_cats['ok']) $remoteCats['movie'] = stalker_js_list($vod_cats['data']);
+    
+    // On force category=* pour que Stalker n'ignore pas la requête
+    $vod_streams = stalker_load($portal, $mac, $token, 'vod', 'get_ordered_list', ['category' => '*'], $hs['path'], $proxy);
+    if (!$vod_streams['ok'] || empty(stalker_js_list($vod_streams['data']))) {
+        // Plan B : Utilisation de get_video si get_ordered_list est vide
+        $vod_streams = stalker_load($portal, $mac, $token, 'vod', 'get_video', ['category' => '*'], $hs['path'], $proxy);
+    }
+    if ($vod_streams['ok']) $remoteStreams['movie'] = stalker_js_list($vod_streams['data']);
+
+    // 3. SÉRIES
+    $series_cats = stalker_load($portal, $mac, $token, 'series', 'get_categories', [], $hs['path'], $proxy);
+    if ($series_cats['ok']) $remoteCats['series'] = stalker_js_list($series_cats['data']);
+    
+    $series_streams = stalker_load($portal, $mac, $token, 'series', 'get_ordered_list', ['category' => '*'], $hs['path'], $proxy);
+    if ($series_streams['ok']) $remoteStreams['series'] = stalker_js_list($series_streams['data']);
+    
 } elseif ($type === 'm3u') {
     $resp = fetch_data_stream($f['url_base']);
     if (is_array($resp) && isset($resp['error'])) die('<p style="color:red">❌ Erreur M3U: '.h($resp['error']).'</p>');
@@ -200,6 +221,7 @@ body{background:#0f1219;color:#eef6ff;}
 .cat-item:hover{border-color:#00d2ff;}
 .cat-item input{cursor:pointer; width: 18px; height: 18px; accent-color: #00d2ff;}
 .badge-count{background:rgba(0,210,255,0.1);color:#00d2ff;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:bold;margin-left:auto;}
+.badge-count-empty{background:rgba(255,71,87,0.1);color:#ff4757;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:bold;margin-left:auto;}
 </style>
 </head><body>
 <form method="POST" id="importForm">
@@ -231,13 +253,15 @@ body{background:#0f1219;color:#eef6ff;}
                     $rid = trim((string)($c['category_id'] ?? $c['id'] ?? ''));
                     $name = trim((string)($c['category_name'] ?? $c['title'] ?? $c['name'] ?? 'Général'));
                     if ($rid === '') $rid = $name;
+                    
                     $count = $catCounts[$kind][$rid] ?? 0;
-                    if ($count === 0) continue; // On masque les bouquets vides
+                    // On affiche désormais les bouquets même à 0 pour le diagnostic
+                    $badgeClass = ($count > 0) ? 'badge-count' : 'badge-count-empty';
                 ?>
                 <label class="cat-item">
                     <input type="checkbox" name="selected_cats[<?= $kind ?>][]" value="<?= h($rid) ?>">
                     <span style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="<?= h($name) ?>"><?= h($name) ?></span>
-                    <span class="badge-count"><?= $count ?></span>
+                    <span class="<?= $badgeClass ?>"><?= $count ?></span>
                 </label>
                 <?php endforeach; ?>
             </div>
