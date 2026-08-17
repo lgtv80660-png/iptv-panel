@@ -4,6 +4,9 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+// Désactiver la limite de temps de 30 secondes de PHP
+set_time_limit(0);
+
 // Chemin absolu pour éviter les 404 internes
 require_once __DIR__ . '/stalker.php';
 
