@@ -1,11 +1,7 @@
 <?php
 require 'config.php';
-
-// --- MISE À JOUR AUTOMATIQUE DE LA BASE DE DONNÉES ---
-try { $pdo->query("SELECT visible FROM streams LIMIT 1"); } 
-catch (Exception $e) { $pdo->query("ALTER TABLE streams ADD COLUMN visible TINYINT(1) DEFAULT 1"); }
-try { $pdo->query("SELECT visible FROM categories LIMIT 1"); } 
-catch (Exception $e) { $pdo->query("ALTER TABLE categories ADD COLUMN visible TINYINT(1) DEFAULT 1"); }
+require 'db_migrations.php';
+ensure_panel_schema($pdo);
 
 // --- RÉCUPÉRATION D'UN COMPTE CLIENT POUR LE LECTEUR VIDÉO ---
 // On récupère dynamiquement le premier client actif dans la base de données
@@ -279,7 +275,7 @@ if ($mode === 'streams') {
                                 </td>
                                 <td><span class="badge-type"><?= $s['stream_type'] ?></span></td>
                                 <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="previewStream('<?= $s['stream_id'] ?>', '<?= $s['stream_type'] ?>', '<?= addslashes(htmlspecialchars($s['stream_name'])) ?>')" title="Prévisualiser la chaîne">
+                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="previewStream('<?= $s['stream_id'] ?>', '<?= $s['stream_type'] ?>', '<?= addslashes(htmlspecialchars($s['stream_name'])) ?>', '<?= htmlspecialchars((string)($s['container_extension'] ?? ''), ENT_QUOTES) ?>')" title="Prévisualiser la chaîne">
                                         <i class="fas fa-play"></i>
                                     </button>
                                     <button type="button" class="btn btn-sm <?= $s['visible'] ? 'btn-outline-warning' : 'btn-outline-success' ?> toggle-btn me-1" onclick="toggleSingle('<?= $s['stream_id'] ?>', 'stream', this)">
@@ -472,7 +468,7 @@ if ($mode === 'streams') {
             editModal.show();
         }
 
-        function previewStream(streamId, type, name) {
+        function previewStream(streamId, type, name, extension = '') {
             if (!previewUser || !previewPass) {
                 alert("Aucun client actif n'a été trouvé dans la base de données. Impossible de lancer la vidéo.");
                 return;
@@ -489,11 +485,11 @@ if ($mode === 'streams') {
 
             let url = '';
             if (type === 'live') {
-                url = `live.php?username=${previewUser}&password=${previewPass}&stream=${streamId}&extension=m3u8`;
+                url = `live.php?username=${encodeURIComponent(previewUser)}&password=${encodeURIComponent(previewPass)}&stream=${encodeURIComponent(streamId)}&extension=m3u8`;
             } else if (type === 'movie') {
-                url = `vod.php?username=${previewUser}&password=${previewPass}&stream=${streamId}&extension=mp4`;
+                url = `vod.php?username=${encodeURIComponent(previewUser)}&password=${encodeURIComponent(previewPass)}&stream=${encodeURIComponent(streamId)}&extension=${encodeURIComponent(extension || 'mp4')}`;
             } else if (type === 'episode') {
-                url = `series.php?username=${previewUser}&password=${previewPass}&stream=${streamId}&extension=mp4`;
+                url = `series.php?username=${encodeURIComponent(previewUser)}&password=${encodeURIComponent(previewPass)}&stream=${encodeURIComponent(streamId)}&extension=${encodeURIComponent(extension || 'mp4')}`;
             } else {
                 document.getElementById('playerError').style.display = 'block';
                 return;

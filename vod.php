@@ -1,5 +1,7 @@
 <?php
 require 'config.php';
+require 'db_migrations.php';
+ensure_panel_schema($pdo);
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, HEAD, OPTIONS');
@@ -10,8 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 $user = trim(strtolower((string)($_GET['username'] ?? '')));
 $pass = trim((string)($_GET['password'] ?? ''));
 $stream_id = trim((string)($_GET['stream'] ?? ''));
-$extension = strtolower(trim((string)($_GET['extension'] ?? 'mp4')));
-$extension = preg_replace('/[^a-z0-9]/i', '', $extension) ?: 'mp4';
+$requested_extension = strtolower(trim((string)($_GET['extension'] ?? '')));
+$requested_extension = preg_replace('/[^a-z0-9]/i', '', $requested_extension);
 
 $stmt = $pdo->prepare('SELECT id FROM clients WHERE LOWER(username) = ? AND password = ? AND active = 1 LIMIT 1');
 $stmt->execute([$user, $pass]);
@@ -25,6 +27,11 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$data) { http_response_code(404); exit('Movie not found'); }
 
 if ($data['type'] === 'xtream') {
+    // The stored provider extension is authoritative. This prevents a client
+    // forcing .mp4 when the real file is .mkv/.avi/etc.
+    $extension = strtolower(trim((string)($data['container_extension'] ?? '')));
+    $extension = preg_replace('/[^a-z0-9]/i', '', $extension);
+    if ($extension === '') $extension = $requested_extension ?: 'mp4';
     $url_finale = rtrim($data['url_base'], '/') . '/movie/'
         . rawurlencode((string)$data['user']) . '/'
         . rawurlencode((string)$data['pass']) . '/'

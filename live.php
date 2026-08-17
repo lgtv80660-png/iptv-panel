@@ -1,5 +1,7 @@
 <?php
 require 'config.php';
+require 'db_migrations.php';
+ensure_panel_schema($pdo);
 require_once 'stalker.php';
 
 header('Access-Control-Allow-Origin: *');

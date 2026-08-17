@@ -1,5 +1,7 @@
 <?php
 require 'config.php';
+require 'db_migrations.php';
+ensure_panel_schema($pdo);
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, HEAD, OPTIONS');
@@ -35,8 +37,9 @@ if (!$data) {
     exit('Episode not found');
 }
 
-$extension = $requested_extension ?: strtolower((string)($data['container_extension'] ?? 'mp4'));
-$extension = preg_replace('/[^a-z0-9]/i', '', $extension) ?: 'mp4';
+$extension = strtolower(trim((string)($data['container_extension'] ?? '')));
+$extension = preg_replace('/[^a-z0-9]/i', '', $extension);
+if ($extension === '') $extension = $requested_extension ?: 'mp4';
 
 if ($data['type'] === 'xtream') {
     $base = rtrim($data['url_base'], '/');

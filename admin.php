@@ -1,6 +1,8 @@
 <?php
 session_start();
 require 'config.php';
+require 'db_migrations.php';
+ensure_panel_schema($pdo);
 try { $pdo->query("ALTER TABLE fournisseurs ADD COLUMN mac_address VARCHAR(64) DEFAULT NULL"); } catch (Throwable $e) {}
 
 if (isset($_GET['logout'])) {
