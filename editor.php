@@ -580,5 +580,6 @@ if ($mode === 'streams') {
             location.reload(); 
         }
     </script>
+<script src="assets/gpanel-ui.js"></script>
 </body>
 </html>

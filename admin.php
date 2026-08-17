@@ -71,6 +71,7 @@ if (!isset($_SESSION['admin_logged']) || $_SESSION['admin_logged'] !== true):
             <button type="submit" name="login_btn" class="btn btn-primary w-100">Se connecter</button>
         </form>
     </div>
+<script src="assets/gpanel-ui.js"></script>
 </body>
 </html>
 <?php 
@@ -545,5 +546,6 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
             new bootstrap.Modal(document.getElementById('editSourceModal')).show();
         }
     </script>
+<script src="assets/gpanel-ui.js"></script>
 </body>
 </html>
