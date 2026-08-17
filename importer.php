@@ -1,5 +1,5 @@
 <?php
-// V15 - Importation AJAX + Mémorisation des catégories déjà cochées
+// V16 - Importation AJAX + Détection des filtres (Catégories Visibles uniquement)
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -36,7 +36,7 @@ function fetch_data_stream($url, $headers = []) {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => 'IPTV-Panel/15.0',
+        CURLOPT_USERAGENT => 'IPTV-Panel/16.0',
         CURLOPT_ENCODING => '',
         CURLOPT_TIMEOUT => 120,
         CURLOPT_CONNECTTIMEOUT => 20,
@@ -176,7 +176,7 @@ if (!$selectedProvider):
   <div class="gp-import-top">
     <div class="gp-import-brand">
       <img src="assets/g-panel-logo.png" alt="G-PANEL">
-      <div><div class="gp-import-title">Importation Interactive (V15)</div></div>
+      <div><div class="gp-import-title">Importation Interactive (V16)</div></div>
     </div>
     <a class="btn btn-outline-light" href="admin.php"><i class="fas fa-arrow-left"></i> Retour</a>
   </div>
@@ -207,8 +207,8 @@ $js_token = ''; $js_path = '/c/';
 // ÉTAPE 2 : AFFICHAGE & AJAX COUNTING
 // ==========================================
 if ($step === 2) {
-    // 1. Récupérer les catégories déjà importées depuis la BDD locale
-    $stmtExisting = $pdo->prepare("SELECT remote_category_id, content_type FROM categories WHERE fournisseur_id = ?");
+    // 1. Récupérer UNIQUEMENT les catégories Visibles (Filtre Éditeur) depuis la BDD locale
+    $stmtExisting = $pdo->prepare("SELECT remote_category_id, content_type FROM categories WHERE fournisseur_id = ? AND visible = 1");
     $stmtExisting->execute([$fid]);
     $alreadyImported = ['live'=>[], 'movie'=>[], 'series'=>[]];
     foreach ($stmtExisting->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -294,7 +294,7 @@ body{background:#0f1219;color:#eef6ff;}
     <div class="top-bar">
         <div>
             <h4 style="margin:0;"><i class="fas fa-filter text-info me-2"></i> Sélection des bouquets : <?= h($nom) ?></h4>
-            <small class="text-muted" id="loading-status">Les catégories déjà importées dans votre base sont pré-cochées.</small>
+            <small class="text-muted" id="loading-status">Les catégories actives de votre éditeur sont pré-cochées.</small>
         </div>
         <div>
             <a href="admin.php" class="btn btn-outline-secondary me-2">Annuler</a>
@@ -320,7 +320,6 @@ body{background:#0f1219;color:#eef6ff;}
                     $isStalker = ($type === 'stalker');
                     $count = $catCounts[$kind][$rid] ?? 0;
                     
-                    // Vérifier si cette catégorie est déjà dans la BDD
                     $isAlreadyImported = in_array($rid, $alreadyImported[$kind]);
                     $checkedState = $isAlreadyImported ? 'checked' : '';
                 ?>
@@ -330,7 +329,7 @@ body{background:#0f1219;color:#eef6ff;}
                     <span style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="<?= h($name) ?>"><?= h($name) ?></span>
                     
                     <?php if ($isAlreadyImported && !$isStalker): ?>
-                         <span class="badge-count badge-imported" title="Déjà dans la BDD"><i class="fas fa-check"></i> <?= $count ?></span>
+                         <span class="badge-count badge-imported" title="Actif dans l'éditeur"><i class="fas fa-check"></i> <?= $count ?></span>
                     <?php elseif ($isStalker): ?>
                         <span class="loading-badge"><i class="fas fa-spinner fa-spin"></i></span>
                     <?php else: ?>
@@ -400,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             badge.innerText = 'Err';
         }
     }
-    document.getElementById('loading-status').innerHTML = "<i class='fas fa-check text-success'></i> Calcul terminé. Les catégories existantes sont en vert.";
+    document.getElementById('loading-status').innerHTML = "<i class='fas fa-check text-success'></i> Calcul terminé.";
 });
 </script>
 </body></html>
