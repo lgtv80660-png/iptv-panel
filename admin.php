@@ -1,6 +1,7 @@
 <?php
 session_start();
 require 'config.php';
+try { $pdo->query("ALTER TABLE fournisseurs ADD COLUMN mac_address VARCHAR(64) DEFAULT NULL"); } catch (Throwable $e) {}
 
 if (isset($_GET['logout'])) {
     unset($_SESSION['admin_logged']);
@@ -121,14 +122,17 @@ if (isset($_POST['add_source'])) {
 
     $stmt = $pdo->prepare("INSERT INTO fournisseurs (nom, type, url_base, user, pass, mac_address) VALUES (?, ?, ?, ?, ?, ?)");
     if($stmt->execute([$nom, $type, $url_base, $user, $pass, $mac_address])) {
-        header("Location: admin.php?success=1"); exit;
+        // Après création, importer uniquement cette nouvelle source.
+        $new_source_id = (int)$pdo->lastInsertId();
+        header("Location: importer.php?fournisseur_id=" . $new_source_id);
+        exit;
     }
 }
 
 // --- MODIFICATION SOURCE ---
 if (isset($_POST['edit_source_btn'])) {
-    $stmt = $pdo->prepare("UPDATE fournisseurs SET nom = ?, url_base = ?, user = ?, pass = ? WHERE id = ?");
-    if($stmt->execute([$_POST['edit_nom'], $_POST['edit_url'], $_POST['edit_user'], $_POST['edit_pass'], $_POST['source_id']])) {
+    $stmt = $pdo->prepare("UPDATE fournisseurs SET nom = ?, url_base = ?, user = ?, pass = ?, mac_address = ? WHERE id = ?");
+    if($stmt->execute([$_POST['edit_nom'], $_POST['edit_url'], $_POST['edit_user'], $_POST['edit_pass'], $_POST['edit_mac_address'] ?? null, $_POST['source_id']])) {
         header("Location: admin.php?success=updated"); exit;
     }
 }
@@ -358,11 +362,17 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                                 <tr>
                                     <td class="fw-bold"><?= htmlspecialchars($f['nom']) ?></td>
                                     <td><span class="type-badge"><?= strtoupper($f['type']) ?></span></td>
-                                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    <td style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                         <a href="<?= htmlspecialchars($f['url_base']) ?>" target="_blank" class="text-muted"><?= htmlspecialchars($f['url_base']) ?></a>
+                                        <?php if (strtolower($f['type']) === 'stalker' && !empty($f['mac_address'])): ?>
+                                            <div><small class="text-info"><i class="fas fa-network-wired me-1"></i><?= htmlspecialchars($f['mac_address']) ?></small></div>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-info me-2" onclick="editSourceModal('<?= $f['id'] ?>', '<?= addslashes(htmlspecialchars($f['nom'])) ?>', '<?= addslashes(htmlspecialchars($f['url_base'])) ?>', '<?= addslashes(htmlspecialchars($f['user'])) ?>', '<?= addslashes(htmlspecialchars($f['pass'])) ?>')">
+                                        <a href="importer.php?fournisseur_id=<?= (int)$f['id'] ?>" class="btn btn-sm btn-outline-success me-2" title="Importer / actualiser uniquement cette source">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-info me-2" onclick="editSourceModal('<?= $f['id'] ?>', '<?= addslashes(htmlspecialchars($f['nom'])) ?>', '<?= addslashes(htmlspecialchars($f['url_base'])) ?>', '<?= addslashes(htmlspecialchars($f['user'])) ?>', '<?= addslashes(htmlspecialchars($f['pass'])) ?>', '<?= addslashes(htmlspecialchars($f['mac_address'] ?? '')) ?>')">
                                             <i class="fas fa-edit"></i>
                                         </button>
                                         <form method="POST" style="display:inline;" onsubmit="return confirm('⚠️ ATTENTION : Cela supprimera définitivement ce fournisseur ET TOUTES ses chaînes de votre base de données. Continuer ?');">
@@ -459,6 +469,11 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                         <input type="text" name="edit_pass" id="edit_source_pass" class="form-control">
                     </div>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">Adresse MAC Stalker</label>
+                    <input type="text" name="edit_mac_address" id="edit_source_mac" class="form-control" placeholder="00:1A:79:XX:XX:XX">
+                    <div class="form-text text-muted">Utilisée uniquement pour les fournisseurs Stalker.</div>
+                </div>
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
@@ -504,12 +519,13 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
             new bootstrap.Modal(document.getElementById('editClientModal')).show();
         }
 
-        function editSourceModal(id, nom, url, user, pass) {
+        function editSourceModal(id, nom, url, user, pass, mac) {
             document.getElementById('edit_source_id').value = id;
             document.getElementById('edit_source_nom').value = nom;
             document.getElementById('edit_source_url').value = url;
             document.getElementById('edit_source_user').value = user;
             document.getElementById('edit_source_pass').value = pass;
+            document.getElementById('edit_source_mac').value = mac || '';
             new bootstrap.Modal(document.getElementById('editSourceModal')).show();
         }
     </script>
