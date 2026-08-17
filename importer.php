@@ -76,6 +76,17 @@ if (!$selectedProvider):
 .gp-import-status p{margin:8px 0}
 @media(max-width:700px){.gp-import-top{align-items:flex-start;flex-direction:column}.gp-import-actions{width:100%}.gp-import-actions a{flex:1;justify-content:center}}
 </style>
+
+<style>
+.gp-import-top{position:sticky;top:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;gap:18px;padding:12px 18px;margin:-24px -24px 24px;border-bottom:1px solid rgba(127,157,190,.18);backdrop-filter:blur(14px)}
+.gp-import-actions{display:flex;gap:8px;flex-wrap:wrap}
+.gp-import-actions .btn{white-space:nowrap}
+.gp-import-complete{text-align:center;padding:28px 12px 10px}
+.gp-complete-icon{width:58px;height:58px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;background:#16a34a;color:#fff;font-size:28px;font-weight:800}
+.gp-complete-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:20px}
+.gp-auto-return{margin-top:16px;color:var(--gp-muted);font-size:13px}
+@media(max-width:700px){.gp-import-top{align-items:flex-start;flex-direction:column}.gp-import-actions{width:100%}.gp-import-actions .btn{flex:1}}
+</style>
 </head><body>
 <div class="gp-import-shell">
   <div class="gp-import-top">
@@ -83,9 +94,8 @@ if (!$selectedProvider):
       <img src="assets/g-panel-logo.png" alt="G-PANEL">
       <div><div class="gp-import-title">Importation & synchronisation</div><div class="gp-import-sub">Une seule source à la fois — les autres fournisseurs restent inchangés.</div></div>
     </div>
-    <div class="gp-import-actions">
-      <a class="btn btn-primary" href="admin.php"><i class="fas fa-arrow-left"></i> Retour au Panel</a>
-      <a class="btn btn-outline-info" href="editor.php"><i class="fas fa-sliders-h"></i> Éditeur</a><a class="btn btn-outline-secondary" href="javascript:history.back()"><i class="fas fa-chevron-left"></i> Retour</a>
+    <div class="gp-import-actions"><a class="btn btn-outline-light" href="admin.php"><i class="fas fa-home"></i> Panel</a><a class="btn btn-outline-light" href="editor.php"><i class="fas fa-sliders-h"></i> Éditeur</a><a class="btn btn-outline-info" href="test_stalker.php"><i class="fas fa-plug"></i> Test Stalker</a>
+      <a class="btn btn-primary" href="admin.php"><i class="fas fa-arrow-left"></i> Retour au Panel</a><a class="btn btn-outline-info" href="editor.php"><i class="fas fa-sliders-h"></i> Éditeur</a>
     </div>
   </div>
   <div class="gp-import-card">
@@ -263,8 +273,26 @@ foreach ($remoteStreams as $kind=>$items) {
     }
 }
 
-echo '<hr><p><b style="color:green">✅ Importation V5 de « '.h($nom).' » terminée.</b></p>';
-echo '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;"><a class="btn btn-primary" href="admin.php">← Retour admin</a><a class="btn btn-outline-info" href="editor.php">Ouvrir les filtres</a></div>';
-echo '</div></div></div><script src="assets/gpanel-ui.js"></script>
+echo '<hr><div class="gp-import-complete"><div class="gp-complete-icon">✓</div><h2>Importation terminée</h2><p>Le fournisseur <b>'.h($nom).'</b> a été traité. Les autres fournisseurs n\'ont pas été modifiés.</p><div class="gp-complete-actions"><a class="btn btn-primary btn-lg" href="admin.php"><i class="fas fa-home"></i> Retour au Panel</a><a class="btn btn-outline-info btn-lg" href="editor.php"><i class="fas fa-sliders-h"></i> Ouvrir l\'Éditeur</a></div><p class="gp-auto-return">Retour automatique au Panel dans <span id="gp-countdown">15</span> secondes.</p></div>';
+
+echo '</div></div></div>';
+?>
+<script src="assets/gpanel-ui.js"></script>
+<script>
+(function(){
+  var el=document.getElementById('gp-countdown');
+  if(!el) return;
+  var n=15;
+  var timer=setInterval(function(){
+    n--;
+    el.textContent=n;
+    if(n<=0){
+      clearInterval(timer);
+      window.location.href='admin.php';
+    }
+  },1000);
+})();
+</script>
+
 </body></html>';
 ?>

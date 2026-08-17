@@ -385,7 +385,7 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-end">
-                                        <a href="importer.php?fournisseur_id=<?= (int)$f['id'] ?>" class="btn btn-sm btn-outline-success me-2" title="Importer / actualiser uniquement cette source">
+                                        <a href="importer.php?fournisseur_id=<?= (int)$f['id'] ?>" class="btn btn-sm btn-outline-success me-2" target="_self" title="Importer / actualiser uniquement cette source">
                                             <i class="fas fa-sync-alt"></i>
                                         </a>
                                         <button class="btn btn-sm btn-outline-info me-2" onclick="editSourceModal('<?= $f['id'] ?>', '<?= addslashes(htmlspecialchars($f['nom'])) ?>', '<?= addslashes(htmlspecialchars($f['url_base'])) ?>', '<?= addslashes(htmlspecialchars($f['user'])) ?>', '<?= addslashes(htmlspecialchars($f['pass'])) ?>', '<?= addslashes(htmlspecialchars($f['mac_address'] ?? '')) ?>')">
