@@ -1,5 +1,5 @@
 <?php
-// V12 - Importation Interactive AJAX (Compteurs en temps réel & Anti-Timeout)
+// V13 - Importation AJAX + Correction Pagination Stalker (Page Loop & Total Items)
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -36,7 +36,7 @@ function fetch_data_stream($url, $headers = []) {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => 'IPTV-Panel/12.0',
+        CURLOPT_USERAGENT => 'IPTV-Panel/13.0',
         CURLOPT_ENCODING => '',
         CURLOPT_TIMEOUT => 120,
         CURLOPT_CONNECTTIMEOUT => 20,
@@ -70,7 +70,7 @@ function process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $
 }
 
 // ==========================================
-// MOTEUR AJAX (Compteurs en tâche de fond)
+// MOTEUR AJAX (Compteurs Anti-Limite 14)
 // ==========================================
 if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'get_count') {
     header('Content-Type: application/json');
@@ -99,15 +99,27 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'get_count') {
                 }
             } else {
                 $st_type = ($kind === 'movie') ? 'vod' : 'series';
-                $res = stalker_load($portal, $mac, $hs['token'], $st_type, 'get_ordered_list', ['category' => $cat_id, 'p'=>1, 'limit'=>99999], $hs['path'], $proxy);
-                $items = stalker_js_list($res['data']);
-                $count = is_array($items) ? count($items) : 0;
+                $res = stalker_load($portal, $mac, $hs['token'], $st_type, 'get_ordered_list', ['category' => $cat_id, 'p'=>1], $hs['path'], $proxy);
                 
-                // Fallback agressif pour les séries Stalker si vide
-                if ($count === 0 && $kind === 'series') {
-                    $res = stalker_load($portal, $mac, $hs['token'], 'series', 'get_series', ['category' => $cat_id, 'p'=>1, 'limit'=>99999], $hs['path'], $proxy);
+                // LECTURE DU VRAI TOTAL SANS TÉLÉCHARGER TOUTES LES PAGES
+                $raw = json_decode((string)$res['data'], true);
+                if (isset($raw['js']['total_items'])) {
+                    $count = (int)$raw['js']['total_items'];
+                } else {
                     $items = stalker_js_list($res['data']);
                     $count = is_array($items) ? count($items) : 0;
+                }
+                
+                // Fallback Séries
+                if ($count === 0 && $kind === 'series') {
+                    $res = stalker_load($portal, $mac, $hs['token'], 'series', 'get_series', ['category' => $cat_id, 'p'=>1], $hs['path'], $proxy);
+                    $raw = json_decode((string)$res['data'], true);
+                    if (isset($raw['js']['total_items'])) {
+                        $count = (int)$raw['js']['total_items'];
+                    } else {
+                        $items = stalker_js_list($res['data']);
+                        $count = is_array($items) ? count($items) : 0;
+                    }
                 }
             }
         }
@@ -147,7 +159,7 @@ if (!$selectedProvider):
   <div class="gp-import-top">
     <div class="gp-import-brand">
       <img src="assets/g-panel-logo.png" alt="G-PANEL">
-      <div><div class="gp-import-title">Importation Interactive (V12)</div></div>
+      <div><div class="gp-import-title">Importation Interactive (V13)</div></div>
     </div>
     <a class="btn btn-outline-light" href="admin.php"><i class="fas fa-arrow-left"></i> Retour</a>
   </div>
@@ -180,8 +192,6 @@ if ($step === 2) {
     if ($type === 'xtream') {
         $base = rtrim((string)$f['url_base'], '/');
         $api = $base.'/player_api.php?username='.rawurlencode((string)$f['user']).'&password='.rawurlencode((string)$f['pass']);
-        
-        // Xtream est très rapide, on peut tout compter en PHP
         foreach (['get_live_categories'=>'live','get_vod_categories'=>'movie','get_series_categories'=>'series'] as $action=>$kind) {
             $resp = fetch_data_stream($api.'&action='.$action);
             if ($resp) { $dec = json_decode($resp, true); if(is_array($dec)) $remoteCats[$kind] = $dec; }
@@ -207,7 +217,6 @@ if ($step === 2) {
         $hs = stalker_handshake($portal, $mac, $proxy);
         if (!$hs['ok']) die('<p style="color:red">❌ Erreur Handshake: '.h($hs['error']).'</p>');
         
-        // Stalker: On ne charge QUE les catégories ici. L'AJAX fera les compteurs.
         $res = stalker_load($portal, $mac, $hs['token'], 'itv', 'get_genres', [], $hs['path'], $proxy);
         if ($res['ok']) $remoteCats['live'] = stalker_js_list($res['data']);
         $res = stalker_load($portal, $mac, $hs['token'], 'vod', 'get_categories', [], $hs['path'], $proxy);
@@ -305,14 +314,12 @@ function toggleAll(kind) {
     checkboxes.forEach(c => c.checked = !allChecked);
 }
 
-// Moteur AJAX pour charger les compteurs Stalker sans faire planter le serveur
 document.addEventListener('DOMContentLoaded', async function() {
     const ajaxItems = document.querySelectorAll('.ajax-cat');
     if (ajaxItems.length === 0) return;
     
-    document.getElementById('loading-status').innerHTML = "<i class='fas fa-sync fa-spin text-warning'></i> Calcul des flux en cours (Ne pas fermer la page)...";
+    document.getElementById('loading-status').innerHTML = "<i class='fas fa-sync fa-spin text-warning'></i> Calcul des flux en cours (Vrai total)...";
     
-    // On requête les catégories une par une pour ne pas surcharger
     for (let i = 0; i < ajaxItems.length; i++) {
         let item = ajaxItems[i];
         let kind = item.getAttribute('data-kind');
@@ -342,7 +349,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             badge.innerText = 'Err';
         }
     }
-    document.getElementById('loading-status').innerHTML = "<i class='fas fa-check text-success'></i> Calcul terminé. Vous pouvez faire votre sélection.";
+    document.getElementById('loading-status').innerHTML = "<i class='fas fa-check text-success'></i> Calcul terminé.";
 });
 </script>
 </body></html>
@@ -350,7 +357,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 }
 
 // ==========================================
-// ÉTAPE 3 : IMPORTATION SQL CIBLÉE
+// ÉTAPE 3 : IMPORTATION SQL CIBLÉE (AVEC PAGINATION)
 // ==========================================
 if ($step === 3):
     $selectedCats = $_POST['selected_cats'] ?? [];
@@ -429,7 +436,7 @@ if ($step === 3):
 
             if ($type === 'xtream') {
                 $action = ($kind==='live') ? 'get_live_streams' : (($kind==='movie') ? 'get_vod_streams' : 'get_series');
-                echo "<p style='color:#8b92a5;'>Téléchargement des flux API Xtream...</p>"; flush();
+                echo "<p style='color:#8b92a5;'>Téléchargement API Xtream...</p>"; flush();
                 $resp = fetch_data_stream($api.'&action='.$action);
                 if ($resp) {
                     $items = json_decode($resp, true);
@@ -441,8 +448,7 @@ if ($step === 3):
                 echo "<p style='color:#8b92a5;'>Analyse M3U...</p>"; flush();
                 $items = []; $current = null;
                 foreach ($m3u_lines as $line) {
-                    $line = trim($line);
-                    if ($line === '') continue;
+                    if (trim($line) === '') continue;
                     if (stripos($line, '#EXTINF:') === 0) {
                         $current = ['name'=>'','icon'=>'','group'=>'Général','url'=>'','ext'=>null];
                         if (preg_match('/tvg-logo="([^"]*)"/i',$line,$m)) $current['icon']=$m[1];
@@ -464,21 +470,29 @@ if ($step === 3):
                 } else {
                     $stalker_type = ($kind === 'movie') ? 'vod' : 'series';
                     foreach ($selectedCats[$kind] as $cat_id) {
-                        echo "<p style='margin:2px 0; color:#8ea0b5;'>Téléchargement bouquet ID: $cat_id...</p>"; flush();
+                        echo "<p style='margin:2px 0; color:#8ea0b5;'>Bouquet ID: $cat_id...</p>"; flush();
                         
-                        $res = stalker_load($portal, $mac, $token, $stalker_type, 'get_ordered_list', ['category' => $cat_id, 'p' => 1, 'limit' => 99999], $hs['path'], $proxy);
-                        $items = stalker_js_list($res['data']);
-                        
-                        // Fallback Séries
-                        if (empty($items) && $kind === 'series') {
-                            $res = stalker_load($portal, $mac, $token, 'series', 'get_series', ['category' => $cat_id, 'p' => 1, 'limit' => 99999], $hs['path'], $proxy);
+                        // BOUCLE DE PAGINATION AUTOMATIQUE
+                        $p = 1;
+                        while(true) {
+                            $res = stalker_load($portal, $mac, $token, $stalker_type, 'get_ordered_list', ['category' => $cat_id, 'p' => $p], $hs['path'], $proxy);
                             $items = stalker_js_list($res['data']);
-                        }
-                        
-                        if (!empty($items)) {
+                            
+                            // Fallback
+                            if (empty($items) && $kind === 'series') {
+                                $res = stalker_load($portal, $mac, $token, 'series', 'get_series', ['category' => $cat_id, 'p' => $p], $hs['path'], $proxy);
+                                $items = stalker_js_list($res['data']);
+                            }
+                            
+                            if (empty($items)) break;
+                            
                             $inserted = process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $insertStream);
-                            echo "<script>window.scrollTo(0,document.body.scrollHeight);</script>"; flush();
                             $total_inserted += $inserted;
+                            echo "<script>window.scrollTo(0,document.body.scrollHeight);</script>"; flush();
+                            
+                            // Si la page contient moins de 14 éléments, on est arrivé à la toute dernière page
+                            if (count($items) < 14) break;
+                            $p++;
                         }
                     }
                 }
