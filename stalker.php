@@ -32,7 +32,7 @@ function stalker_build_url($base, $path, array $params = []) {
     return $params ? $url . '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986) : $url;
 }
 
-function stalker_request($url, array $headers = [], $timeout = 25) {
+function stalker_request($url, array $headers = [], $timeout = 25, $proxy = '') {
     $ch = curl_init($url);
     $defaultHeaders = [
         'Accept: application/json, text/javascript, */*; q=0.01',
@@ -40,7 +40,8 @@ function stalker_request($url, array $headers = [], $timeout = 25) {
         'X-User-Agent: Model: MAG250; Link: Ethernet',
         'User-Agent: Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 4 rev: 1812 Safari/533.3',
     ];
-    curl_setopt_array($ch, [
+    
+    $options = [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_HEADER => false,
@@ -50,13 +51,30 @@ function stalker_request($url, array $headers = [], $timeout = 25) {
         CURLOPT_TIMEOUT => $timeout,
         CURLOPT_HTTPHEADER => array_merge($defaultHeaders, $headers),
         CURLOPT_ENCODING => '',
-    ]);
+    ];
+
+    // Intégration du système de Proxy
+    if (trim($proxy) !== '') {
+        $parts = explode(':', trim($proxy));
+        // Si le format est IP:PORT:USER:PASS
+        if (count($parts) === 4) {
+            $options[CURLOPT_PROXY] = $parts[0] . ':' . $parts[1];
+            $options[CURLOPT_PROXYUSERPWD] = $parts[2] . ':' . $parts[3];
+        } else {
+            // Si le format est juste IP:PORT
+            $options[CURLOPT_PROXY] = trim($proxy);
+        }
+    }
+
+    curl_setopt_array($ch, $options);
+    
     $body = curl_exec($ch);
     $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_error($ch);
     $contentType = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     $effective = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
     curl_close($ch);
+    
     return [
         'ok' => ($body !== false && $err === '' && $http >= 200 && $http < 400),
         'body' => $body === false ? '' : (string)$body,
@@ -125,7 +143,7 @@ function stalker_endpoint_candidates() {
     ];
 }
 
-function stalker_handshake_diagnostics($portal, $mac) {
+function stalker_handshake_diagnostics($portal, $mac, $proxy = '') {
     $mac = stalker_normalize_mac($mac);
     $portal = stalker_normalize_portal($portal);
     $diagnostics = [];
@@ -150,7 +168,9 @@ function stalker_handshake_diagnostics($portal, $mac) {
                 'JsHttpRequest'=>'1-xml',
             ];
             $url = stalker_build_url($portal, $path, $params);
-            $r = stalker_request($url, stalker_headers($mac, '', $portal), 20);
+            
+            // On passe le proxy à la fonction stalker_request
+            $r = stalker_request($url, stalker_headers($mac, '', $portal), 20, $proxy);
             $data = stalker_decode($r['body']);
             $token = stalker_extract_token($data);
 
@@ -185,11 +205,11 @@ function stalker_handshake_diagnostics($portal, $mac) {
     ];
 }
 
-function stalker_handshake($portal, $mac) {
-    return stalker_handshake_diagnostics($portal, $mac);
+function stalker_handshake($portal, $mac, $proxy = '') {
+    return stalker_handshake_diagnostics($portal, $mac, $proxy);
 }
 
-function stalker_load($portal, $mac, $token, $type, $action, array $extra = [], $preferredPath = '') {
+function stalker_load($portal, $mac, $token, $type, $action, array $extra = [], $preferredPath = '', $proxy = '') {
     $portal = stalker_normalize_portal($portal);
     $paths = [];
     if ($preferredPath !== '') $paths[] = $preferredPath;
@@ -203,10 +223,15 @@ function stalker_load($portal, $mac, $token, $type, $action, array $extra = [], 
             'action'=>$action,
             'JsHttpRequest'=>'1-xml',
         ], $extra);
+        
+        // On passe le proxy à la fonction stalker_request
         $r = stalker_request(
             stalker_build_url($portal, $path, $params),
-            stalker_headers($mac, $token, $portal)
+            stalker_headers($mac, $token, $portal),
+            25,
+            $proxy
         );
+        
         if (!$r['ok']) continue;
         $data = stalker_decode($r['body']);
         if (is_array($data)) return ['ok'=>true,'data'=>$data,'path'=>$path];
@@ -225,7 +250,7 @@ function stalker_js_list($data) {
     return [];
 }
 
-function stalker_resolve_stream($portal, $mac, $token, $cmd, $preferredPath = '') {
+function stalker_resolve_stream($portal, $mac, $token, $cmd, $preferredPath = '', $proxy = '') {
     $portal = stalker_normalize_portal($portal);
     $cmd = trim((string)$cmd);
     if ($cmd === '') return ['ok'=>false,'error'=>'Commande Stalker vide.'];
@@ -240,7 +265,7 @@ function stalker_resolve_stream($portal, $mac, $token, $cmd, $preferredPath = ''
         'series'=>'0',
         'forced_storage'=>'undefined',
         'disable_ad'=>'0',
-    ], $preferredPath);
+    ], $preferredPath, $proxy);
 
     if (!$result['ok']) return $result;
 
