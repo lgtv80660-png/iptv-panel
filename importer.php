@@ -1,5 +1,5 @@
 <?php
-// V13 - Importation AJAX + Correction Pagination Stalker (Page Loop & Total Items)
+// V14 - Importation AJAX avec Token Unique (Anti-Ban Stalker)
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -36,7 +36,7 @@ function fetch_data_stream($url, $headers = []) {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => 'IPTV-Panel/13.0',
+        CURLOPT_USERAGENT => 'IPTV-Panel/14.0',
         CURLOPT_ENCODING => '',
         CURLOPT_TIMEOUT => 120,
         CURLOPT_CONNECTTIMEOUT => 20,
@@ -70,13 +70,19 @@ function process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $
 }
 
 // ==========================================
-// MOTEUR AJAX (Compteurs Anti-Limite 14)
+// MOTEUR AJAX (Compteurs Anti-Ban)
 // ==========================================
 if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'get_count') {
+    // On masque les erreurs PHP pour garantir que le résultat soit toujours du JSON valide
+    error_reporting(0); 
+    @ini_set('display_errors', 0);
     header('Content-Type: application/json');
+    
     $fid = (int)$_POST['fournisseur_id'];
     $kind = $_POST['kind'];
     $cat_id = $_POST['cat_id'];
+    $token = $_POST['token'] ?? '';
+    $path = $_POST['path'] ?? '/c/';
 
     $stmt = $pdo->prepare("SELECT * FROM fournisseurs WHERE id = ?");
     $stmt->execute([$fid]);
@@ -87,38 +93,52 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'get_count') {
         $portal = stalker_normalize_portal($f['url_base']);
         $mac = stalker_normalize_mac($f['mac_address']);
         $proxy = $f['proxy'] ?? '';
-        $hs = stalker_handshake($portal, $mac, $proxy);
-        if ($hs['ok']) {
+        
+        // Si le token est perdu, on relance un handshake de secours
+        if (empty($token)) {
+            $hs = stalker_handshake($portal, $mac, $proxy);
+            if ($hs['ok']) {
+                $token = $hs['token'];
+                $path = $hs['path'];
+            }
+        }
+        
+        if (!empty($token)) {
             if ($kind === 'live') {
-                $res = stalker_load($portal, $mac, $hs['token'], 'itv', 'get_all_channels', [], $hs['path'], $proxy);
-                $items = stalker_js_list($res['data']);
-                if (is_array($items)) {
-                    foreach($items as $i) {
-                        if (($i['tv_genre_id'] ?? $i['category_id'] ?? '') == $cat_id) $count++;
+                $res = stalker_load($portal, $mac, $token, 'itv', 'get_all_channels', [], $path, $proxy);
+                if ($res['ok']) {
+                    $items = stalker_js_list($res['data']);
+                    if (is_array($items)) {
+                        foreach($items as $i) {
+                            if (($i['tv_genre_id'] ?? $i['category_id'] ?? '') == $cat_id) $count++;
+                        }
                     }
                 }
             } else {
                 $st_type = ($kind === 'movie') ? 'vod' : 'series';
-                $res = stalker_load($portal, $mac, $hs['token'], $st_type, 'get_ordered_list', ['category' => $cat_id, 'p'=>1], $hs['path'], $proxy);
+                $res = stalker_load($portal, $mac, $token, $st_type, 'get_ordered_list', ['category' => $cat_id, 'p'=>1], $path, $proxy);
                 
-                // LECTURE DU VRAI TOTAL SANS TÉLÉCHARGER TOUTES LES PAGES
-                $raw = json_decode((string)$res['data'], true);
-                if (isset($raw['js']['total_items'])) {
-                    $count = (int)$raw['js']['total_items'];
-                } else {
-                    $items = stalker_js_list($res['data']);
-                    $count = is_array($items) ? count($items) : 0;
-                }
-                
-                // Fallback Séries
-                if ($count === 0 && $kind === 'series') {
-                    $res = stalker_load($portal, $mac, $hs['token'], 'series', 'get_series', ['category' => $cat_id, 'p'=>1], $hs['path'], $proxy);
+                if ($res['ok']) {
                     $raw = json_decode((string)$res['data'], true);
                     if (isset($raw['js']['total_items'])) {
                         $count = (int)$raw['js']['total_items'];
                     } else {
                         $items = stalker_js_list($res['data']);
                         $count = is_array($items) ? count($items) : 0;
+                    }
+                    
+                    // Fallback Séries
+                    if ($count === 0 && $kind === 'series') {
+                        $res2 = stalker_load($portal, $mac, $token, 'series', 'get_series', ['category' => $cat_id, 'p'=>1], $path, $proxy);
+                        if ($res2['ok']) {
+                            $raw2 = json_decode((string)$res2['data'], true);
+                            if (isset($raw2['js']['total_items'])) {
+                                $count = (int)$raw2['js']['total_items'];
+                            } else {
+                                $items = stalker_js_list($res2['data']);
+                                $count = is_array($items) ? count($items) : 0;
+                            }
+                        }
                     }
                 }
             }
@@ -159,7 +179,7 @@ if (!$selectedProvider):
   <div class="gp-import-top">
     <div class="gp-import-brand">
       <img src="assets/g-panel-logo.png" alt="G-PANEL">
-      <div><div class="gp-import-title">Importation Interactive (V13)</div></div>
+      <div><div class="gp-import-title">Importation Interactive (V14)</div></div>
     </div>
     <a class="btn btn-outline-light" href="admin.php"><i class="fas fa-arrow-left"></i> Retour</a>
   </div>
@@ -185,6 +205,10 @@ $f = $selectedProvider; $fid = (int)$f['id']; $nom = $f['nom']; $type = strtolow
 $remoteCats = ['live'=>[], 'movie'=>[], 'series'=>[]];
 $catCounts = ['live'=>[], 'movie'=>[], 'series'=>[]];
 
+// Identifiants partagés pour Stalker (Anti-Ban)
+$js_token = '';
+$js_path = '/c/';
+
 // ==========================================
 // ÉTAPE 2 : AFFICHAGE & AJAX COUNTING
 // ==========================================
@@ -192,6 +216,7 @@ if ($step === 2) {
     if ($type === 'xtream') {
         $base = rtrim((string)$f['url_base'], '/');
         $api = $base.'/player_api.php?username='.rawurlencode((string)$f['user']).'&password='.rawurlencode((string)$f['pass']);
+        
         foreach (['get_live_categories'=>'live','get_vod_categories'=>'movie','get_series_categories'=>'series'] as $action=>$kind) {
             $resp = fetch_data_stream($api.'&action='.$action);
             if ($resp) { $dec = json_decode($resp, true); if(is_array($dec)) $remoteCats[$kind] = $dec; }
@@ -217,11 +242,15 @@ if ($step === 2) {
         $hs = stalker_handshake($portal, $mac, $proxy);
         if (!$hs['ok']) die('<p style="color:red">❌ Erreur Handshake: '.h($hs['error']).'</p>');
         
-        $res = stalker_load($portal, $mac, $hs['token'], 'itv', 'get_genres', [], $hs['path'], $proxy);
+        // On sauvegarde le token pour le transmettre au Javascript
+        $js_token = $hs['token'];
+        $js_path = $hs['path'];
+        
+        $res = stalker_load($portal, $mac, $js_token, 'itv', 'get_genres', [], $js_path, $proxy);
         if ($res['ok']) $remoteCats['live'] = stalker_js_list($res['data']);
-        $res = stalker_load($portal, $mac, $hs['token'], 'vod', 'get_categories', [], $hs['path'], $proxy);
+        $res = stalker_load($portal, $mac, $js_token, 'vod', 'get_categories', [], $js_path, $proxy);
         if ($res['ok']) $remoteCats['movie'] = stalker_js_list($res['data']);
-        $res = stalker_load($portal, $mac, $hs['token'], 'series', 'get_categories', [], $hs['path'], $proxy);
+        $res = stalker_load($portal, $mac, $js_token, 'series', 'get_categories', [], $js_path, $proxy);
         if ($res['ok']) $remoteCats['series'] = stalker_js_list($res['data']);
         
     } elseif ($type === 'm3u') {
@@ -318,7 +347,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     const ajaxItems = document.querySelectorAll('.ajax-cat');
     if (ajaxItems.length === 0) return;
     
-    document.getElementById('loading-status').innerHTML = "<i class='fas fa-sync fa-spin text-warning'></i> Calcul des flux en cours (Vrai total)...";
+    document.getElementById('loading-status').innerHTML = "<i class='fas fa-sync fa-spin text-warning'></i> Calcul des flux en cours...";
+    
+    const stalkerToken = "<?= h($js_token) ?>";
+    const stalkerPath = "<?= h($js_path) ?>";
     
     for (let i = 0; i < ajaxItems.length; i++) {
         let item = ajaxItems[i];
@@ -333,6 +365,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             formData.append('fournisseur_id', '<?= $fid ?>');
             formData.append('kind', kind);
             formData.append('cat_id', catId);
+            formData.append('token', stalkerToken);
+            formData.append('path', stalkerPath);
             
             let response = await fetch('importer.php', { method: 'POST', body: formData });
             let data = await response.json();
@@ -357,7 +391,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 }
 
 // ==========================================
-// ÉTAPE 3 : IMPORTATION SQL CIBLÉE (AVEC PAGINATION)
+// ÉTAPE 3 : IMPORTATION SQL CIBLÉE
 // ==========================================
 if ($step === 3):
     $selectedCats = $_POST['selected_cats'] ?? [];
@@ -472,7 +506,6 @@ if ($step === 3):
                     foreach ($selectedCats[$kind] as $cat_id) {
                         echo "<p style='margin:2px 0; color:#8ea0b5;'>Bouquet ID: $cat_id...</p>"; flush();
                         
-                        // BOUCLE DE PAGINATION AUTOMATIQUE
                         $p = 1;
                         while(true) {
                             $res = stalker_load($portal, $mac, $token, $stalker_type, 'get_ordered_list', ['category' => $cat_id, 'p' => $p], $hs['path'], $proxy);
@@ -490,7 +523,6 @@ if ($step === 3):
                             $total_inserted += $inserted;
                             echo "<script>window.scrollTo(0,document.body.scrollHeight);</script>"; flush();
                             
-                            // Si la page contient moins de 14 éléments, on est arrivé à la toute dernière page
                             if (count($items) < 14) break;
                             $p++;
                         }
