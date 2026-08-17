@@ -91,3 +91,29 @@
   window.GPanelUI={setLang,setTheme,translate,LANGS};
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();
+
+/* V6.5 login controls: move/create compact controls below login form */
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    const select = document.querySelector('.gp-lang-select');
+    const theme = document.querySelector('.gp-theme-toggle');
+    const loginForm = document.querySelector('form[action*="login"], form.login-form, .login-form form, #loginForm');
+    const loginCard = document.querySelector('.login-card, .login-box, .auth-card, .login-container .card');
+
+    if ((select || theme) && (loginForm || loginCard)) {
+      let controls = document.querySelector('.gp-login-controls');
+      if (!controls) {
+        controls = document.createElement('div');
+        controls.className = 'gp-login-controls';
+      }
+      const anchor = loginForm || loginCard;
+      const parent = anchor.parentElement || anchor;
+      if (!controls.parentElement) parent.appendChild(controls);
+
+      if (select && !controls.contains(select)) controls.appendChild(select);
+      if (theme && !controls.contains(theme)) controls.appendChild(theme);
+    }
+  } catch(e) {
+    console.warn('G-PANEL login controls:', e);
+  }
+});

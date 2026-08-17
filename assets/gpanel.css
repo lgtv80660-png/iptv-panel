@@ -233,3 +233,73 @@ html[data-theme="dark"] .gp-sidebar-controls .gp-lang-select option{
 .gp-rtl .gp-sidebar-footer{direction:rtl}
 .gp-rtl .gp-control-title,
 .gp-rtl .gp-control-label{flex-direction:row-reverse}
+
+/* G-PANEL V6.5 — login controls */
+.gp-login-controls {
+    display:flex !important;
+    justify-content:center !important;
+    align-items:center !important;
+    gap:8px !important;
+    margin:14px auto 0 !important;
+    width:fit-content !important;
+    max-width:100% !important;
+}
+.gp-login-controls .gp-lang-select,
+.gp-login-controls select {
+    width:auto !important;
+    min-width:112px !important;
+    height:32px !important;
+    padding:4px 9px !important;
+    font-size:12px !important;
+    border-radius:8px !important;
+}
+.gp-login-controls .gp-theme-toggle,
+.gp-login-controls button {
+    width:32px !important;
+    height:32px !important;
+    min-width:32px !important;
+    padding:0 !important;
+    border-radius:8px !important;
+}
+html[data-theme="light"] .gp-login-controls .gp-lang-select,
+html[data-theme="light"] .gp-login-controls select {
+    background:#fff !important;
+    color:#263548 !important;
+    border-color:#cbd5e1 !important;
+}
+html[data-theme="dark"] .gp-login-controls .gp-lang-select,
+html[data-theme="dark"] .gp-login-controls select {
+    background:#0b1527 !important;
+    color:#eef6ff !important;
+    border-color:#2a3a50 !important;
+    color-scheme:dark;
+}
+html[data-theme="dark"] .gp-login-controls option {
+    background:#0b1527 !important;
+    color:#eef6ff !important;
+}
+@media(max-width:520px){
+    .gp-login-controls { gap:6px !important; }
+    .gp-login-controls .gp-lang-select,
+    .gp-login-controls select { min-width:100px !important; }
+}
+
+/* Editor light mode: MASQUER must remain readable */
+html[data-theme="light"] .btn-hide,
+html[data-theme="light"] .btn-masquer,
+html[data-theme="light"] .hide-btn,
+html[data-theme="light"] .masquer,
+html[data-theme="light"] [data-action="hide"] {
+    background:#6b7280 !important;
+    color:#ffffff !important;
+    border-color:#5b6470 !important;
+    text-shadow:none !important;
+}
+html[data-theme="light"] .btn-hide:hover,
+html[data-theme="light"] .btn-masquer:hover,
+html[data-theme="light"] .hide-btn:hover,
+html[data-theme="light"] .masquer:hover,
+html[data-theme="light"] [data-action="hide"]:hover {
+    background:#4b5563 !important;
+    color:#ffffff !important;
+}
