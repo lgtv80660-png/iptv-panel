@@ -1,5 +1,5 @@
 <?php
-// V7 - Importation Interactive + Correction Stalker VOD/Series
+// V8 - Importation Interactive + Correction API Stalker (VOD/Series)
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -36,7 +36,7 @@ function fetch_data_stream($url, $headers = []) {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => 'IPTV-Panel/7.0',
+        CURLOPT_USERAGENT => 'IPTV-Panel/8.0',
         CURLOPT_ENCODING => '',
         CURLOPT_TIMEOUT => 120,
         CURLOPT_CONNECTTIMEOUT => 20,
@@ -154,20 +154,25 @@ if ($type === 'xtream') {
     $vod_cats = stalker_load($portal, $mac, $token, 'vod', 'get_categories', [], $hs['path'], $proxy);
     if ($vod_cats['ok']) $remoteCats['movie'] = stalker_js_list($vod_cats['data']);
     
-    // On force category=* pour que Stalker n'ignore pas la requête
-    $vod_streams = stalker_load($portal, $mac, $token, 'vod', 'get_ordered_list', ['category' => '*'], $hs['path'], $proxy);
+    // Tentative standard
+    $vod_streams = stalker_load($portal, $mac, $token, 'vod', 'get_video', [], $hs['path'], $proxy);
     if (!$vod_streams['ok'] || empty(stalker_js_list($vod_streams['data']))) {
-        // Plan B : Utilisation de get_video si get_ordered_list est vide
-        $vod_streams = stalker_load($portal, $mac, $token, 'vod', 'get_video', ['category' => '*'], $hs['path'], $proxy);
+        // Tentative alternative si la première échoue
+        $vod_streams = stalker_load($portal, $mac, $token, 'vod', 'get_ordered_list', [], $hs['path'], $proxy);
     }
-    if ($vod_streams['ok']) $remoteStreams['movie'] = stalker_js_list($vod_streams['data']);
+    $remoteStreams['movie'] = stalker_js_list($vod_streams['data']);
 
     // 3. SÉRIES
     $series_cats = stalker_load($portal, $mac, $token, 'series', 'get_categories', [], $hs['path'], $proxy);
     if ($series_cats['ok']) $remoteCats['series'] = stalker_js_list($series_cats['data']);
     
-    $series_streams = stalker_load($portal, $mac, $token, 'series', 'get_ordered_list', ['category' => '*'], $hs['path'], $proxy);
-    if ($series_streams['ok']) $remoteStreams['series'] = stalker_js_list($series_streams['data']);
+    // Tentative standard
+    $series_streams = stalker_load($portal, $mac, $token, 'series', 'get_ordered_list', [], $hs['path'], $proxy);
+    if (!$series_streams['ok'] || empty(stalker_js_list($series_streams['data']))) {
+        // Tentative alternative
+        $series_streams = stalker_load($portal, $mac, $token, 'series', 'get_series', [], $hs['path'], $proxy);
+    }
+    $remoteStreams['series'] = stalker_js_list($series_streams['data']);
     
 } elseif ($type === 'm3u') {
     $resp = fetch_data_stream($f['url_base']);
@@ -192,14 +197,18 @@ if ($type === 'xtream') {
     $uniq=[]; foreach($remoteCats['live'] as $c){$k=(string)$c['id'];$uniq[$k]=$c;} $remoteCats['live']=array_values($uniq);
 }
 
-// Calculer le nombre de flux par catégorie (en RAM)
+// Calculer le nombre de flux par catégorie (en RAM) avec correspondances multiples
 $catCounts = ['live'=>[], 'movie'=>[], 'series'=>[]];
 foreach ($remoteStreams as $kind => $items) {
     foreach ($items as $s) {
         $catRid = '';
-        if ($type === 'm3u') $catRid = (string)($s['group'] ?? 'Général');
-        elseif ($type === 'stalker') $catRid = (string)($s['tv_genre_id'] ?? $s['genre_id'] ?? $s['category_id'] ?? '');
-        else $catRid = (string)($s['category_id'] ?? '');
+        if ($type === 'm3u') {
+            $catRid = (string)($s['group'] ?? 'Général');
+        } elseif ($type === 'stalker') {
+            $catRid = (string)($s['category_id'] ?? $s['tv_genre_id'] ?? $s['genre_id'] ?? $s['cat_id'] ?? '');
+        } else {
+            $catRid = (string)($s['category_id'] ?? '');
+        }
         
         if (!isset($catCounts[$kind][$catRid])) $catCounts[$kind][$catRid] = 0;
         $catCounts[$kind][$catRid]++;
@@ -255,7 +264,6 @@ body{background:#0f1219;color:#eef6ff;}
                     if ($rid === '') $rid = $name;
                     
                     $count = $catCounts[$kind][$rid] ?? 0;
-                    // On affiche désormais les bouquets même à 0 pour le diagnostic
                     $badgeClass = ($count > 0) ? 'badge-count' : 'badge-count-empty';
                 ?>
                 <label class="cat-item">
@@ -309,7 +317,7 @@ if ($step === 3):
         echo "<h3 style='color:#00d2ff;'>Traitement $kind…</h3>"; flush();
         $pdo->beginTransaction();
         try {
-            // Nettoyage préalable (uniquement le type en cours pour ce fournisseur)
+            // Nettoyage préalable
             if ($kind === 'series') $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ? AND stream_type = 'episode'")->execute([$fid]);
             $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ? AND stream_type = ?")->execute([$fid, $kind]);
             $pdo->prepare("DELETE FROM categories WHERE fournisseur_id = ? AND content_type = ?")->execute([$fid, $kind]);
@@ -336,7 +344,7 @@ if ($step === 3):
                 if ($type === 'm3u') {
                     $name=(string)($s['name']??''); $icon=(string)($s['icon']??''); $source=(string)($s['url']??''); $rid=$source; $catRid=(string)($s['group']??'Général'); $ext=normalize_ext($s['ext'] ?? null, infer_ext_from_url($source));
                 } elseif ($type === 'stalker') {
-                    $name=(string)($s['name']??$s['title']??''); $icon=(string)($s['logo']??$s['icon']??''); $source=(string)($s['cmd']??$s['url']??''); $rid=(string)($s['id']??$s['ch_id']??$s['cmd']??''); $catRid=(string)($s['tv_genre_id']??$s['genre_id']??$s['category_id']??''); $ext=null;
+                    $name=(string)($s['name']??$s['title']??''); $icon=(string)($s['logo']??$s['icon']??''); $source=(string)($s['cmd']??$s['url']??''); $rid=(string)($s['id']??$s['ch_id']??$s['cmd']??''); $catRid=(string)($s['category_id']??$s['tv_genre_id']??$s['genre_id']??$s['cat_id']??''); $ext=null;
                 } else {
                     $name=(string)($s['name']??'');
                     $icon=(string)($s['stream_icon']??$s['cover']??$s['cover_big']??'');
