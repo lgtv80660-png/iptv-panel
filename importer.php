@@ -157,16 +157,27 @@ if ($type === 'xtream') {
 } elseif ($type === 'stalker') {
     $portal = stalker_normalize_portal($f['url_base']);
     $mac = stalker_normalize_mac($f['mac_address'] ?? '');
+    
+    // Récupération dynamique du proxy depuis la base de données
+    $proxy = $f['proxy'] ?? ''; 
+    
     if ($mac === '') die('<p style="color:red">❌ Adresse MAC Stalker manquante.</p>');
-    $hs = stalker_handshake($portal, $mac);
+    
+    // Transmission du proxy au Handshake
+    $hs = stalker_handshake($portal, $mac, $proxy);
     if (!$hs['ok']) die('<p style="color:red">❌ '.h($hs['error']).'<br>Import annulé : les données existantes ont été conservées.</p>');
+    
     $token = $hs['token'];
     echo '<p style="color:green">✔ Handshake Stalker OK — portail utilisé : '.h($hs['path']).'</p>'; flush();
-    $genres = stalker_load($portal,$mac,$token,'itv','get_genres',[], $hs['path']);
+    
+    // Transmission du proxy aux requêtes de chargement de contenu
+    $genres = stalker_load($portal, $mac, $token, 'itv', 'get_genres', [], $hs['path'], $proxy);
     if ($genres['ok']) $remoteCats['live'] = stalker_js_list($genres['data']);
-    $channels = stalker_load($portal,$mac,$token,'itv','get_all_channels',[], $hs['path']);
+    
+    $channels = stalker_load($portal, $mac, $token, 'itv', 'get_all_channels', [], $hs['path'], $proxy);
     if (!$channels['ok']) die('<p style="color:red">❌ '.h($channels['error']).'<br>Import annulé : les données existantes ont été conservées.</p>');
     $remoteStreams['live'] = stalker_js_list($channels['data']);
+    
     echo '<p>Genres : '.count($remoteCats['live']).' — Chaînes : '.count($remoteStreams['live']).'</p>'; flush();
 } elseif ($type === 'm3u') {
     $resp = fetch_data_stream($f['url_base']);
@@ -294,5 +305,4 @@ echo '</div></div></div>';
 })();
 </script>
 
-</body></html>';
-?>
+</body></html>
