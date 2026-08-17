@@ -140,13 +140,14 @@ if ($mode === 'streams') {
 
         #videoPlayer { width: 100%; border-radius: 8px; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
     </style>
+    <link rel="stylesheet" href="assets/gpanel.css">
 </head>
 <body>
 
     <aside class="sidebar">
-        <div class="brand"><i class="fas fa-play-circle"></i> PROXY<span>STREAM</span></div>
-        <a href="admin.php"><i class="fas fa-tachometer-alt"></i> Tableau de bord</a>
-        <a href="editor.php" class="active"><i class="fas fa-folder-open"></i> Gestion des Bouquets</a>
+        <div class="brand"><img class="brand-full" src="assets/g-panel-logo.png" alt="G-PANEL"><img class="brand-mark" src="assets/g-panel-mark.png" alt="G-PANEL"></div><div class="gp-brand-mini">IPTV MANAGEMENT SYSTEM</div>
+        <div class="gp-section-label">Navigation</div><a href="admin.php"><i class="fas fa-tachometer-alt"></i> Tableau de bord</a>
+        <div class="gp-section-label">Gestion</div><a href="editor.php" class="active"><i class="fas fa-folder-open"></i> Gestion des Bouquets</a>
         <a onclick="startBackgroundImport('importer.php')"><i class="fas fa-sync-alt"></i> Forcer l'importation</a>
     </aside>
 

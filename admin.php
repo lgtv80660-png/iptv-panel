@@ -48,11 +48,12 @@ if (!isset($_SESSION['admin_logged']) || $_SESSION['admin_logged'] !== true):
         .btn-primary { background: var(--accent); border: none; padding: 12px; font-weight: bold; color: #000; }
         .btn-primary:hover { opacity: 0.9; }
     </style>
+    <link rel="stylesheet" href="assets/gpanel.css">
 </head>
 <body>
     <div class="login-panel">
         <div class="text-center mb-4">
-            <h3 style="color:#fff;"><i class="fas fa-play-circle" style="color:var(--accent);"></i> PROXY<span style="color:var(--accent);">STREAM</span></h3>
+            <img src="assets/g-panel-logo.png" alt="G-PANEL" style="width:260px;max-width:100%;height:auto;display:block;margin:0 auto 14px;">
             <p class="text-muted" style="font-size:14px;">Espace Administrateur sécurisé</p>
         </div>
         <?php if($login_error): ?>
@@ -208,13 +209,14 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
         .copy-box { background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); font-family: monospace; font-size: 13px; margin-bottom: 15px; word-break: break-all; }
         .copy-box span { color: var(--accent); }
     </style>
+    <link rel="stylesheet" href="assets/gpanel.css">
 </head>
 <body>
     <aside class="sidebar">
-        <div class="brand"><i class="fas fa-play-circle"></i> PROXY<span>STREAM</span></div>
-        <a href="admin.php" class="active"><i class="fas fa-tachometer-alt"></i> Tableau de bord</a>
+        <div class="brand"><img class="brand-full" src="assets/g-panel-logo.png" alt="G-PANEL"><img class="brand-mark" src="assets/g-panel-mark.png" alt="G-PANEL"></div><div class="gp-brand-mini">IPTV MANAGEMENT SYSTEM</div>
+        <div class="gp-section-label">Navigation</div><a href="admin.php" class="active"><i class="fas fa-tachometer-alt"></i> Tableau de bord</a>
         <a href="editor.php"><i class="fas fa-folder-open"></i> Gestion des Bouquets</a>
-        <a href="#clients"><i class="fas fa-users"></i> Gestion Clients</a>
+        <div class="gp-section-label">Gestion</div><a href="#clients"><i class="fas fa-users"></i> Gestion Clients</a>
         <a href="#sources"><i class="fas fa-server"></i> Fournisseurs (Sources)</a>
         <a href="importer.php" target="_blank"><i class="fas fa-sync-alt"></i> Forcer l'importation</a>
         <a href="admin.php?logout=1" style="color: #ff4757; margin-top: 30px;"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
@@ -222,7 +224,7 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
 
     <main class="main-content">
         <header class="top-header">
-            <h4 class="mb-0">Tableau de bord</h4>
+            <div class="gp-page-title"><div><div class="eyebrow">G-PANEL / Overview</div><h1>Tableau de bord</h1></div><span class="gp-chip"><i class="fas fa-shield-halved"></i> Système opérationnel</span></div>
             <div class="user-profile">
                 <div class="avatar">Z</div>
                 <div>
@@ -403,6 +405,7 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                 </div>
             </div>
         </div>
+        <div class="text-center" style="color:#536a83;font-size:11px;padding:8px 0 4px;letter-spacing:.4px;">G-PANEL • IPTV MANAGEMENT SYSTEM</div>
     </main>
 
     <!-- Modal Affichage Lien M3U Xtream -->
