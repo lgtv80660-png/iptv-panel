@@ -1,5 +1,5 @@
 <?php
-// V10 - Importation Interactive Ultra-Rapide (Lazy Loading Anti-Timeout)
+// V11 - Importation Interactive (Correction Page Blanche)
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -14,46 +14,84 @@ ensure_panel_schema($pdo);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 set_time_limit(3600);
 ini_set('memory_limit', '2048M');
 
+// Fonctions globales
 if (!function_exists('h')) {
     function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 }
-function normalize_ext($ext, $fallback = null) {
-    $ext = strtolower(trim((string)$ext));
-    $ext = preg_replace('/[^a-z0-9]/i', '', $ext);
-    return $ext !== '' ? $ext : $fallback;
+if (!function_exists('normalize_ext')) {
+    function normalize_ext($ext, $fallback = null) {
+        $ext = strtolower(trim((string)$ext));
+        $ext = preg_replace('/[^a-z0-9]/i', '', $ext);
+        return $ext !== '' ? $ext : $fallback;
+    }
 }
-function infer_ext_from_url($url) {
-    $path = parse_url((string)$url, PHP_URL_PATH);
-    if (!$path) return null;
-    $ext = pathinfo($path, PATHINFO_EXTENSION);
-    return normalize_ext($ext, null);
+if (!function_exists('infer_ext_from_url')) {
+    function infer_ext_from_url($url) {
+        $path = parse_url((string)$url, PHP_URL_PATH);
+        if (!$path) return null;
+        $ext = pathinfo($path, PATHINFO_EXTENSION);
+        return normalize_ext($ext, null);
+    }
 }
-function fetch_data_stream($url, $headers = []) {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => 'IPTV-Panel/10.0',
-        CURLOPT_ENCODING => '',
-        CURLOPT_TIMEOUT => 120,
-        CURLOPT_CONNECTTIMEOUT => 20,
-        CURLOPT_HTTPHEADER => $headers,
-    ]);
-    $result = curl_exec($ch);
-    curl_close($ch);
-    return $result;
+if (!function_exists('fetch_data_stream')) {
+    function fetch_data_stream($url, $headers = []) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_USERAGENT => 'IPTV-Panel/11.0',
+            CURLOPT_ENCODING => '',
+            CURLOPT_TIMEOUT => 120,
+            CURLOPT_CONNECTTIMEOUT => 20,
+            CURLOPT_HTTPHEADER => $headers,
+        ]);
+        $result = curl_exec($ch);
+        curl_close($ch);
+        return $result;
+    }
+}
+if (!function_exists('process_and_insert_streams')) {
+    function process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $insertStream) {
+        $count = 0;
+        foreach ($items as $s) {
+            if (!is_array($s)) continue;
+            $plot=$cast=$director=$genre=$release=$rating=$rating5=$added=$backdrop=$trailer=$runtime=null;
+            
+            if ($type === 'm3u') {
+                $name=(string)($s['name']??''); $icon=(string)($s['icon']??''); $source=(string)($s['url']??''); $rid=$source; $catRid=(string)($s['group']??'Général'); $ext=normalize_ext($s['ext'] ?? null, infer_ext_from_url($source));
+            } elseif ($type === 'stalker') {
+                $name=(string)($s['name']??$s['title']??''); $icon=(string)($s['logo']??$s['icon']??''); $source=(string)($s['cmd']??$s['url']??''); $rid=(string)($s['id']??$s['ch_id']??$s['cmd']??''); $catRid=(string)($s['category_id']??$s['tv_genre_id']??$s['genre_id']??$s['cat_id']??''); $ext=null;
+            } else {
+                $name=(string)($s['name']??''); $icon=(string)($s['stream_icon']??$s['cover']??$s['cover_big']??''); $source=(string)($s['stream_id']??$s['series_id']??''); $rid=$source; $catRid=(string)($s['category_id']??''); $ext=normalize_ext($s['container_extension'] ?? $s['container_ext'] ?? null, null); if (!$ext && !empty($s['direct_source'])) $ext=infer_ext_from_url($s['direct_source']);
+            }
+            
+            if (!isset($catMap[$catRid]) || $name==='' || $source==='') continue;
+            
+            $name = mb_substr($name, 0, 900, 'UTF-8');
+            $insertStream->execute([$fid,$name,$icon,$kind,$catMap[$catRid],$source,1,$ext,$rid,$plot,$cast,$director,$genre,$release,$rating,$rating5,$added,$backdrop,$trailer,$runtime]);
+            $count++;
+        }
+        return $count;
+    }
 }
 
 $fournisseurs = $pdo->query("SELECT * FROM fournisseurs WHERE active = 1 ORDER BY nom ASC")->fetchAll(PDO::FETCH_ASSOC);
 $selectedId = (int)($_GET['fournisseur_id'] ?? $_POST['fournisseur_id'] ?? 0);
-$step = (int)($_POST['step'] ?? 1);
-$selectedProvider = null;
 
+// CORRECTION DU BUG : Si on vient de admin.php avec un fournisseur, on passe à l'étape 2
+if ($selectedId > 0 && !isset($_POST['step'])) {
+    $step = 2;
+} else {
+    $step = (int)($_POST['step'] ?? 1);
+}
+
+$selectedProvider = null;
 if ($selectedId > 0) {
     $stmt = $pdo->prepare("SELECT * FROM fournisseurs WHERE id = ? AND active = 1 LIMIT 1");
     $stmt->execute([$selectedId]);
@@ -82,7 +120,7 @@ if (!$selectedProvider):
   <div class="gp-import-top">
     <div class="gp-import-brand">
       <img src="assets/g-panel-logo.png" alt="G-PANEL">
-      <div><div class="gp-import-title">Importation Interactive (V10)</div><div class="gp-import-sub">Sélectionnez ce que vous souhaitez importer.</div></div>
+      <div><div class="gp-import-title">Importation Interactive (V11)</div><div class="gp-import-sub">Sélectionnez ce que vous souhaitez importer.</div></div>
     </div>
     <div class="gp-import-actions">
       <a class="btn btn-outline-light" href="admin.php"><i class="fas fa-arrow-left"></i> Retour</a>
@@ -108,6 +146,8 @@ if (!$selectedProvider):
 </body></html>
 <?php exit; endif; 
 
+if ($step > 1) { echo "<!-- " . str_repeat("KEEP_ALIVE", 100) . " -->\n"; flush(); }
+
 $f = $selectedProvider; $fid = (int)$f['id']; $nom = $f['nom']; $type = strtolower(trim($f['type']));
 $remoteCats = ['live'=>[], 'movie'=>[], 'series'=>[]];
 
@@ -131,7 +171,6 @@ if ($step === 2) {
         if (!$hs['ok']) die('<p style="color:red">❌ Erreur Handshake: '.h($hs['error']).'</p>');
         $token = $hs['token'];
         
-        // On récupère JUSTE les catégories (Instantané)
         $genres = stalker_load($portal, $mac, $token, 'itv', 'get_genres', [], $hs['path'], $proxy);
         if ($genres['ok']) $remoteCats['live'] = stalker_js_list($genres['data']);
         
@@ -178,8 +217,8 @@ body{background:#0f1219;color:#eef6ff;}
             <small class="text-muted">Cochez uniquement les contenus à sauvegarder dans MySQL.</small>
         </div>
         <div>
-            <a href="importer.php" class="btn btn-outline-secondary me-2">Annuler</a>
-            <button type="submit" class="btn btn-primary px-4" onclick="this.innerHTML='<i class=\'fas fa-spinner fa-spin me-2\'></i> Importation...';"><i class="fas fa-download me-2"></i> Lancer l'importation SQL</button>
+            <a href="admin.php" class="btn btn-outline-secondary me-2">Annuler</a>
+            <button type="submit" class="btn btn-primary px-4" onclick="this.innerHTML='<i class=\'fas fa-spinner fa-spin me-2\'></i> Importation en cours...';"><i class="fas fa-download me-2"></i> Lancer l'importation SQL</button>
         </div>
     </div>
 
@@ -225,9 +264,8 @@ function toggleAll(kind) {
 if ($step === 3):
     $selectedCats = $_POST['selected_cats'] ?? [];
     
-    // Si l'utilisateur n'a rien coché du tout
     if (empty($selectedCats['live']) && empty($selectedCats['movie']) && empty($selectedCats['series'])) {
-        die("<div style='background:#1a1d26; color:#fff; padding:30px; text-align:center;'><h2>Aucun bouquet sélectionné.</h2><a href='importer.php' style='color:#00d2ff;'>Retour</a></div>");
+        die("<div style='background:#1a1d26; color:#fff; padding:30px; text-align:center;'><h2>Aucun bouquet sélectionné.</h2><a href='admin.php' style='color:#00d2ff;'>Retour</a></div>");
     }
 
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>G-PANEL — Import SQL</title><link rel="stylesheet" href="assets/gpanel.css"></head><body style="background:#0f1219;color:#fff;padding:40px;font-family:monospace;">';
@@ -236,31 +274,6 @@ if ($step === 3):
     $insertCat = $pdo->prepare("INSERT INTO categories (category_name,parent_id,visible,fournisseur_id,remote_category_id,content_type) VALUES (?,0,1,?,?,?)");
     $insertStream = $pdo->prepare("INSERT INTO streams (fournisseur_id,stream_name,stream_icon,stream_type,category_id,direct_source,visible,container_extension,remote_stream_id,vod_plot,vod_cast,vod_director,vod_genre,vod_release_date,vod_rating,vod_rating_5based,vod_added,vod_backdrop,vod_trailer,vod_runtime) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 
-    // Fonction de nettoyage et insertion standardisée
-    function process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $insertStream) {
-        $count = 0;
-        foreach ($items as $s) {
-            if (!is_array($s)) continue;
-            $plot=$cast=$director=$genre=$release=$rating=$rating5=$added=$backdrop=$trailer=$runtime=null;
-            
-            if ($type === 'm3u') {
-                $name=(string)($s['name']??''); $icon=(string)($s['icon']??''); $source=(string)($s['url']??''); $rid=$source; $catRid=(string)($s['group']??'Général'); $ext=normalize_ext($s['ext'] ?? null, infer_ext_from_url($source));
-            } elseif ($type === 'stalker') {
-                $name=(string)($s['name']??$s['title']??''); $icon=(string)($s['logo']??$s['icon']??''); $source=(string)($s['cmd']??$s['url']??''); $rid=(string)($s['id']??$s['ch_id']??$s['cmd']??''); $catRid=(string)($s['category_id']??$s['tv_genre_id']??$s['genre_id']??$s['cat_id']??''); $ext=null;
-            } else {
-                $name=(string)($s['name']??''); $icon=(string)($s['stream_icon']??$s['cover']??$s['cover_big']??''); $source=(string)($s['stream_id']??$s['series_id']??''); $rid=$source; $catRid=(string)($s['category_id']??''); $ext=normalize_ext($s['container_extension'] ?? $s['container_ext'] ?? null, null); if (!$ext && !empty($s['direct_source'])) $ext=infer_ext_from_url($s['direct_source']);
-            }
-            
-            if (!isset($catMap[$catRid]) || $name==='' || $source==='') continue;
-            
-            $name = mb_substr($name, 0, 900, 'UTF-8'); // Anti-Crash
-            $insertStream->execute([$fid,$name,$icon,$kind,$catMap[$catRid],$source,1,$ext,$rid,$plot,$cast,$director,$genre,$release,$rating,$rating5,$added,$backdrop,$trailer,$runtime]);
-            $count++;
-        }
-        return $count;
-    }
-
-    // Récupération des catégories (nécessaires pour le mapping)
     $remoteCats = ['live'=>[], 'movie'=>[], 'series'=>[]];
     $token = ''; $hs = []; $portal = ''; $mac = ''; $proxy = '';
     $api = '';
@@ -299,7 +312,6 @@ if ($step === 3):
         $remoteCats['live'] = array_values($remoteCats['live']);
     }
 
-    // Traitement par type de contenu
     foreach (['live', 'movie', 'series'] as $kind) {
         if (empty($selectedCats[$kind])) continue;
 
@@ -355,7 +367,6 @@ if ($step === 3):
                 $total_inserted += process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $insertStream);
                 
             } elseif ($type === 'stalker') {
-                // LAZY LOADING STALKER : On interroge UNIQUEMENT les catégories cochées !
                 if ($kind === 'live') {
                     echo "<p style='color:#8b92a5;'>Téléchargement des chaînes Live...</p>"; flush();
                     $res = stalker_load($portal, $mac, $token, 'itv', 'get_all_channels', [], $hs['path'], $proxy);
@@ -367,7 +378,6 @@ if ($step === 3):
                     foreach ($selectedCats[$kind] as $cat_id) {
                         echo "<p style='margin:2px 0; color:#8ea0b5;'>Téléchargement du bouquet ID : $cat_id...</p>"; flush();
                         
-                        // On demande spécifiquement les éléments de CE bouquet
                         $res = stalker_load($portal, $mac, $token, $stalker_type, 'get_ordered_list', ['category' => $cat_id, 'p' => 1, 'limit' => 99999], $hs['path'], $proxy);
                         if ($res['ok']) {
                             $items = stalker_js_list($res['data']);
