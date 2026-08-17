@@ -66,54 +66,58 @@
   }
   function setLang(lang){if(!LANGS[lang])lang='en'; localStorage.setItem(storageLang,lang); translate(); const sel=document.querySelector('#gp-lang-select'); if(sel) sel.value=lang;}
   function mountToolbar(){
-    if(document.querySelector('.gp-toolbar')) return;
-    const bar=document.createElement('div');
-    bar.className='gp-toolbar gp-sidebar-controls';
-    bar.setAttribute('aria-label','Interface preferences');
-    bar.innerHTML='<div class="gp-control-title"><i class="fas fa-sliders"></i><span>Interface</span></div><label class="gp-control-label" for="gp-lang-select"><i class="fas fa-globe"></i><span>Language</span></label><select id="gp-lang-select" class="gp-lang-select" aria-label="Language">'+Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v.flag} ${v.label}</option>`).join('')+'</select><button id="gp-theme-toggle" class="gp-theme-toggle" type="button"><i></i><span class="gp-theme-text"></span></button>';
-    const sidebar=document.querySelector('.sidebar');
-    if(sidebar){
-      let footer=sidebar.querySelector('.gp-sidebar-footer');
-      if(!footer){
-        footer=document.createElement('div');
-        footer.className='gp-sidebar-footer';
-        sidebar.appendChild(footer);
+    /* Login page: compact controls centered below the login panel. */
+    const loginPanel=document.querySelector('.login-panel');
+    if(loginPanel){
+      let controls=loginPanel.querySelector('.gp-login-controls');
+      if(!controls){
+        controls=document.createElement('div');
+        controls.className='gp-login-controls';
+        controls.innerHTML='<select id="gp-login-lang" class="gp-lang-select" aria-label="Language"></select><button id="gp-login-theme" class="gp-theme-toggle" type="button" aria-label="Theme"><i></i><span class="gp-theme-text"></span></button>';
+        loginPanel.appendChild(controls);
       }
-      footer.appendChild(bar);
-    } else {
-      document.body.appendChild(bar);
+      const sel=controls.querySelector('#gp-login-lang');
+      Object.keys(LANGS).forEach(k=>{
+        const o=document.createElement('option');
+        o.value=k; o.textContent=LANGS[k].flag+' '+LANGS[k].label;
+        sel.appendChild(o);
+      });
+      sel.value=currentLang();
+      sel.addEventListener('change',e=>setLang(e.target.value));
+      controls.querySelector('#gp-login-theme').addEventListener('click',()=>setTheme(currentTheme()==='dark'?'light':'dark'));
+      setTheme(currentTheme());
+      return;
     }
-    bar.querySelector('#gp-lang-select').addEventListener('change',e=>setLang(e.target.value));
+
+    /* Authenticated panel: keep language/theme controls inside sidebar. */
+    const sidebar=document.querySelector('.sidebar');
+    if(!sidebar) return;
+
+    let footer=sidebar.querySelector('.gp-sidebar-footer');
+    if(!footer){
+      footer=document.createElement('div');
+      footer.className='gp-sidebar-footer';
+      sidebar.appendChild(footer);
+    }
+    if(footer.querySelector('#gp-lang-select')) return;
+
+    const bar=document.createElement('div');
+    bar.className='gp-interface-controls';
+    bar.innerHTML='<div class="gp-control-label">Interface</div><select id="gp-lang-select" class="gp-lang-select" aria-label="Language"></select><button id="gp-theme-toggle" class="gp-theme-toggle" type="button" aria-label="Theme"><i></i><span class="gp-theme-text"></span></button>';
+    footer.appendChild(bar);
+
+    const sel=bar.querySelector('#gp-lang-select');
+    Object.keys(LANGS).forEach(k=>{
+      const o=document.createElement('option');
+      o.value=k; o.textContent=LANGS[k].flag+' '+LANGS[k].label;
+      sel.appendChild(o);
+    });
+    sel.value=currentLang();
+    sel.addEventListener('change',e=>setLang(e.target.value));
     bar.querySelector('#gp-theme-toggle').addEventListener('click',()=>setTheme(currentTheme()==='dark'?'light':'dark'));
-    bar.querySelector('#gp-lang-select').value=currentLang();
+    setTheme(currentTheme());
   }
   function init(){mountToolbar();setTheme(currentTheme());translate();}
   window.GPanelUI={setLang,setTheme,translate,LANGS};
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();
-
-/* V6.5 login controls: move/create compact controls below login form */
-document.addEventListener('DOMContentLoaded', function () {
-  try {
-    const select = document.querySelector('.gp-lang-select');
-    const theme = document.querySelector('.gp-theme-toggle');
-    const loginForm = document.querySelector('form[action*="login"], form.login-form, .login-form form, #loginForm');
-    const loginCard = document.querySelector('.login-card, .login-box, .auth-card, .login-container .card');
-
-    if ((select || theme) && (loginForm || loginCard)) {
-      let controls = document.querySelector('.gp-login-controls');
-      if (!controls) {
-        controls = document.createElement('div');
-        controls.className = 'gp-login-controls';
-      }
-      const anchor = loginForm || loginCard;
-      const parent = anchor.parentElement || anchor;
-      if (!controls.parentElement) parent.appendChild(controls);
-
-      if (select && !controls.contains(select)) controls.appendChild(select);
-      if (theme && !controls.contains(theme)) controls.appendChild(theme);
-    }
-  } catch(e) {
-    console.warn('G-PANEL login controls:', e);
-  }
-});

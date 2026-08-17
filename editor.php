@@ -190,7 +190,7 @@ if ($mode === 'streams') {
                     <button class="btn btn-outline-success btn-sm me-2" onclick="bulkAction(true)">
                         <i class="fas fa-eye"></i> Afficher
                     </button>
-                    <button class="btn btn-outline-warning btn-sm" onclick="bulkAction(false)">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="bulkAction(false)">
                         <i class="fas fa-eye-slash"></i> Masquer
                     </button>
                 </div>
