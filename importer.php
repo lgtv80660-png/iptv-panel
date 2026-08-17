@@ -1,5 +1,5 @@
 <?php
-// V14 - Importation AJAX avec Token Unique (Anti-Ban Stalker)
+// V15 - Importation AJAX + Mémorisation des catégories déjà cochées
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -36,7 +36,7 @@ function fetch_data_stream($url, $headers = []) {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => 'IPTV-Panel/14.0',
+        CURLOPT_USERAGENT => 'IPTV-Panel/15.0',
         CURLOPT_ENCODING => '',
         CURLOPT_TIMEOUT => 120,
         CURLOPT_CONNECTTIMEOUT => 20,
@@ -73,7 +73,6 @@ function process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $
 // MOTEUR AJAX (Compteurs Anti-Ban)
 // ==========================================
 if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'get_count') {
-    // On masque les erreurs PHP pour garantir que le résultat soit toujours du JSON valide
     error_reporting(0); 
     @ini_set('display_errors', 0);
     header('Content-Type: application/json');
@@ -94,7 +93,6 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'get_count') {
         $mac = stalker_normalize_mac($f['mac_address']);
         $proxy = $f['proxy'] ?? '';
         
-        // Si le token est perdu, on relance un handshake de secours
         if (empty($token)) {
             $hs = stalker_handshake($portal, $mac, $proxy);
             if ($hs['ok']) {
@@ -127,7 +125,6 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'get_count') {
                         $count = is_array($items) ? count($items) : 0;
                     }
                     
-                    // Fallback Séries
                     if ($count === 0 && $kind === 'series') {
                         $res2 = stalker_load($portal, $mac, $token, 'series', 'get_series', ['category' => $cat_id, 'p'=>1], $path, $proxy);
                         if ($res2['ok']) {
@@ -179,7 +176,7 @@ if (!$selectedProvider):
   <div class="gp-import-top">
     <div class="gp-import-brand">
       <img src="assets/g-panel-logo.png" alt="G-PANEL">
-      <div><div class="gp-import-title">Importation Interactive (V14)</div></div>
+      <div><div class="gp-import-title">Importation Interactive (V15)</div></div>
     </div>
     <a class="btn btn-outline-light" href="admin.php"><i class="fas fa-arrow-left"></i> Retour</a>
   </div>
@@ -204,15 +201,20 @@ if (!$selectedProvider):
 $f = $selectedProvider; $fid = (int)$f['id']; $nom = $f['nom']; $type = strtolower(trim($f['type']));
 $remoteCats = ['live'=>[], 'movie'=>[], 'series'=>[]];
 $catCounts = ['live'=>[], 'movie'=>[], 'series'=>[]];
-
-// Identifiants partagés pour Stalker (Anti-Ban)
-$js_token = '';
-$js_path = '/c/';
+$js_token = ''; $js_path = '/c/';
 
 // ==========================================
 // ÉTAPE 2 : AFFICHAGE & AJAX COUNTING
 // ==========================================
 if ($step === 2) {
+    // 1. Récupérer les catégories déjà importées depuis la BDD locale
+    $stmtExisting = $pdo->prepare("SELECT remote_category_id, content_type FROM categories WHERE fournisseur_id = ?");
+    $stmtExisting->execute([$fid]);
+    $alreadyImported = ['live'=>[], 'movie'=>[], 'series'=>[]];
+    foreach ($stmtExisting->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $alreadyImported[$row['content_type']][] = (string)$row['remote_category_id'];
+    }
+
     if ($type === 'xtream') {
         $base = rtrim((string)$f['url_base'], '/');
         $api = $base.'/player_api.php?username='.rawurlencode((string)$f['user']).'&password='.rawurlencode((string)$f['pass']);
@@ -242,7 +244,6 @@ if ($step === 2) {
         $hs = stalker_handshake($portal, $mac, $proxy);
         if (!$hs['ok']) die('<p style="color:red">❌ Erreur Handshake: '.h($hs['error']).'</p>');
         
-        // On sauvegarde le token pour le transmettre au Javascript
         $js_token = $hs['token'];
         $js_path = $hs['path'];
         
@@ -283,6 +284,7 @@ body{background:#0f1219;color:#eef6ff;}
 .badge-empty{background:rgba(255,71,87,0.1);color:#ff4757;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin-left:auto; opacity:0.6;}
 .loading-badge{color:#8ea0b5; font-size:14px; margin-left:auto;}
 .disabled-item{opacity:0.5; pointer-events:none;}
+.badge-imported{background:rgba(22, 163, 74, 0.2); color:#16a34a; border: 1px solid #16a34a;}
 </style>
 </head><body>
 <form method="POST" id="importForm" action="importer.php">
@@ -292,7 +294,7 @@ body{background:#0f1219;color:#eef6ff;}
     <div class="top-bar">
         <div>
             <h4 style="margin:0;"><i class="fas fa-filter text-info me-2"></i> Sélection des bouquets : <?= h($nom) ?></h4>
-            <small class="text-muted" id="loading-status">Cochez uniquement les contenus à sauvegarder dans MySQL.</small>
+            <small class="text-muted" id="loading-status">Les catégories déjà importées dans votre base sont pré-cochées.</small>
         </div>
         <div>
             <a href="admin.php" class="btn btn-outline-secondary me-2">Annuler</a>
@@ -317,13 +319,19 @@ body{background:#0f1219;color:#eef6ff;}
                     
                     $isStalker = ($type === 'stalker');
                     $count = $catCounts[$kind][$rid] ?? 0;
+                    
+                    // Vérifier si cette catégorie est déjà dans la BDD
+                    $isAlreadyImported = in_array($rid, $alreadyImported[$kind]);
+                    $checkedState = $isAlreadyImported ? 'checked' : '';
                 ?>
-                <label class="cat-item <?= ($isStalker) ? 'disabled-item ajax-cat' : (($count == 0) ? 'disabled-item' : '') ?>" 
+                <label class="cat-item <?= ($isStalker) ? 'disabled-item ajax-cat' : (($count == 0 && !$isAlreadyImported) ? 'disabled-item' : '') ?>" 
                        data-kind="<?= $kind ?>" data-id="<?= h($rid) ?>">
-                    <input type="checkbox" name="selected_cats[<?= $kind ?>][]" value="<?= h($rid) ?>" <?= ($isStalker || $count == 0) ? 'disabled' : '' ?>>
+                    <input type="checkbox" name="selected_cats[<?= $kind ?>][]" value="<?= h($rid) ?>" <?= ($isStalker || ($count == 0 && !$isAlreadyImported)) ? 'disabled' : '' ?> <?= $checkedState ?>>
                     <span style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="<?= h($name) ?>"><?= h($name) ?></span>
                     
-                    <?php if ($isStalker): ?>
+                    <?php if ($isAlreadyImported && !$isStalker): ?>
+                         <span class="badge-count badge-imported" title="Déjà dans la BDD"><i class="fas fa-check"></i> <?= $count ?></span>
+                    <?php elseif ($isStalker): ?>
                         <span class="loading-badge"><i class="fas fa-spinner fa-spin"></i></span>
                     <?php else: ?>
                         <span class="<?= ($count > 0) ? 'badge-count' : 'badge-empty' ?>"><?= $count ?></span>
@@ -351,6 +359,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     const stalkerToken = "<?= h($js_token) ?>";
     const stalkerPath = "<?= h($js_path) ?>";
+    const alreadyImportedJS = <?= json_encode($alreadyImported) ?>;
     
     for (let i = 0; i < ajaxItems.length; i++) {
         let item = ajaxItems[i];
@@ -358,6 +367,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         let catId = item.getAttribute('data-id');
         let badge = item.querySelector('.loading-badge');
         let checkbox = item.querySelector('input');
+        
+        let isImported = alreadyImportedJS[kind] && alreadyImportedJS[kind].includes(catId);
         
         try {
             let formData = new FormData();
@@ -372,10 +383,16 @@ document.addEventListener('DOMContentLoaded', async function() {
             let data = await response.json();
             
             item.classList.remove('disabled-item');
-            badge.className = (data.count > 0) ? 'badge-count' : 'badge-empty';
-            badge.innerText = data.count;
             
-            if (data.count > 0) {
+            if (isImported) {
+                badge.className = 'badge-count badge-imported';
+                badge.innerHTML = '<i class="fas fa-check"></i> ' + data.count;
+            } else {
+                badge.className = (data.count > 0) ? 'badge-count' : 'badge-empty';
+                badge.innerText = data.count;
+            }
+            
+            if (data.count > 0 || isImported) {
                 checkbox.disabled = false;
             }
         } catch (e) {
@@ -383,7 +400,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             badge.innerText = 'Err';
         }
     }
-    document.getElementById('loading-status').innerHTML = "<i class='fas fa-check text-success'></i> Calcul terminé.";
+    document.getElementById('loading-status').innerHTML = "<i class='fas fa-check text-success'></i> Calcul terminé. Les catégories existantes sont en vert.";
 });
 </script>
 </body></html>
@@ -511,7 +528,6 @@ if ($step === 3):
                             $res = stalker_load($portal, $mac, $token, $stalker_type, 'get_ordered_list', ['category' => $cat_id, 'p' => $p], $hs['path'], $proxy);
                             $items = stalker_js_list($res['data']);
                             
-                            // Fallback
                             if (empty($items) && $kind === 'series') {
                                 $res = stalker_load($portal, $mac, $token, 'series', 'get_series', ['category' => $cat_id, 'p' => $p], $hs['path'], $proxy);
                                 $items = stalker_js_list($res['data']);
