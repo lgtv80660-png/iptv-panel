@@ -13,9 +13,13 @@ function stalker_normalize_mac($mac) {
 function stalker_normalize_portal($portal) {
     $portal = trim((string)$portal);
     if ($portal === '') return '';
-    // Accept either a base host or a full /c/ or /stalker_portal URL.
+    $portal = preg_replace('#\s+#', '', $portal);
     $portal = rtrim($portal, '/');
-    $portal = preg_replace('#/(?:c|stalker_portal/server|stalker_portal|stb/server)$#i', '', $portal);
+    $portal = preg_replace(
+        '#/(?:c(?:/portal\.php)?|portal\.php|stalker_portal(?:/server/load\.php)?|stb(?:/server/load\.php)?)$#i',
+        '',
+        $portal
+    );
     return rtrim($portal, '/');
 }
 
@@ -51,9 +55,10 @@ function stalker_request($url, array $headers = [], $timeout = 30) {
 }
 
 function stalker_headers($mac, $token = '', $portal = '') {
-    // IMPORTANT: MAC colons must not be URL-encoded inside the Cookie header.
     $headers = [
         'Cookie: mac=' . $mac . '; stb_lang=en; timezone=Europe/Paris',
+        'X-Device-Mac: ' . $mac,
+        'Accept: application/json, text/javascript, */*; q=0.01',
     ];
     if ($portal !== '') {
         $headers[] = 'Referer: ' . rtrim($portal, '/') . '/c/';
@@ -83,28 +88,35 @@ function stalker_handshake($portal, $mac) {
 
     $paths = [
         '/c/portal.php',
+        '/portal.php',
         '/stalker_portal/server/load.php',
         '/stb/server/load.php',
     ];
 
+    $diagnostics = [];
     foreach ($paths as $path) {
         $params = [
             'type'=>'stb',
             'action'=>'handshake',
             'token'=>'',
+            'prehash'=>'0',
             'JsHttpRequest'=>'1-xml',
         ];
         $url = stalker_build_url($portal, $path, $params);
-        $r = stalker_request($url, stalker_headers($mac, '', $portal));
-        if (!$r['ok']) continue;
+        $r = stalker_request($url, stalker_headers($mac, '', $portal), 25);
+        if (!$r['ok']) {
+            $diagnostics[] = $path . ' HTTP ' . ($r['http'] ?? 0);
+            continue;
+        }
         $data = stalker_decode($r['body']);
-        $token = $data['js']['token'] ?? $data['token'] ?? '';
+        $token = is_array($data) ? ($data['js']['token'] ?? $data['token'] ?? '') : '';
         if (is_string($token) && trim($token) !== '') {
             return ['ok'=>true,'token'=>trim($token),'path'=>$path,'data'=>$data];
         }
+        $preview = trim(preg_replace('/\s+/', ' ', strip_tags((string)$r['body'])));
+        $diagnostics[] = $path . ' réponse sans token' . ($preview !== '' ? ': ' . substr($preview,0,160) : '');
     }
-
-    return ['ok'=>false,'error'=>'Handshake Stalker impossible. Vérifiez le Host, la MAC et le chemin du portail (/c/, /stalker_portal/ ou /stb/).'];
+    return ['ok'=>false,'error'=>'Handshake Stalker impossible. Vérifiez le Host et la MAC. ' . implode(' | ', $diagnostics)];
 }
 
 function stalker_load($portal, $mac, $token, $type, $action, array $extra = [], $preferredPath = '') {

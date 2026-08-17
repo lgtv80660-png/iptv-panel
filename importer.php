@@ -84,8 +84,8 @@ if (!$selectedProvider):
       <div><div class="gp-import-title">Importation & synchronisation</div><div class="gp-import-sub">Une seule source à la fois — les autres fournisseurs restent inchangés.</div></div>
     </div>
     <div class="gp-import-actions">
-      <a class="btn btn-outline-secondary" href="admin.php"><i class="fas fa-arrow-left"></i> Admin</a>
-      <a class="btn btn-outline-info" href="editor.php"><i class="fas fa-sliders-h"></i> Éditeur</a>
+      <a class="btn btn-primary" href="admin.php"><i class="fas fa-arrow-left"></i> Retour au Panel</a>
+      <a class="btn btn-outline-info" href="editor.php"><i class="fas fa-sliders-h"></i> Éditeur</a><a class="btn btn-outline-secondary" href="javascript:history.back()"><i class="fas fa-chevron-left"></i> Retour</a>
     </div>
   </div>
   <div class="gp-import-card">
