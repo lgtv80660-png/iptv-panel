@@ -1,56 +1,52 @@
 <?php
-// Railway uses PHP's built-in server (`php -S`), which does NOT read .htaccess.
-// This router makes Xtream-style /live/..., /movie/... and /series/... URLs work.
+// On récupère le chemin de l'URL demandée
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
-$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-
-// Leave real files/directories to PHP's normal static handling.
-if ($path !== '/' && is_file(__DIR__ . $path)) {
-    return false;
-}
-
-// Xtream-style media URLs:
-// /live/{username}/{password}/{stream_id}.{ext}
-// /movie/{username}/{password}/{stream_id}.{ext}
-// /series/{username}/{password}/{stream_id}.{ext}
-if (preg_match(
-    '#^/(live|movie|series)/([^/]+)/([^/]+)/([^/.]+)\.([A-Za-z0-9]+)$#',
-    $path,
-    $m
-)) {
-    $type = $m[1];
-
-    $_GET['username'] = rawurldecode($m[2]);
-    $_GET['password'] = rawurldecode($m[3]);
-    $_GET['stream']   = rawurldecode($m[4]);
-    $_GET['extension'] = strtolower($m[5]);
-
-    $script = __DIR__ . '/' . (
-        $type === 'live' ? 'live.php' :
-        ($type === 'movie' ? 'vod.php' : 'series.php')
-    );
-
-    require $script;
+// 1. Interception pour le DIRECT (Live)
+if (preg_match('#^/live/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
+    $_GET['username'] = $matches[1];
+    $_GET['password'] = $matches[2];
+    $_GET['stream']   = $matches[3];
+    $_GET['extension']= $matches[4];
+    require __DIR__ . '/live.php';
     exit;
 }
 
-// Let direct PHP endpoints such as /player_api.php?action=... work.
-if (preg_match('#^/[A-Za-z0-9_-]+\.php(?:/.*)?$#', $path)) {
-    $file = __DIR__ . $path;
-    if (is_file($file)) {
-        return false;
+// 2. Interception pour la VOD (Films)
+if (preg_match('#^/movie/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
+    $_GET['username'] = $matches[1];
+    $_GET['password'] = $matches[2];
+    $_GET['stream']   = $matches[3];
+    $_GET['extension']= $matches[4];
+    require __DIR__ . '/vod.php';
+    exit;
+}
+
+// 3. Interception pour les SÉRIES
+if (preg_match('#^/series/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
+    $_GET['username'] = $matches[1];
+    $_GET['password'] = $matches[2];
+    $_GET['stream']   = $matches[3];
+    $_GET['extension']= $matches[4];
+    require __DIR__ . '/series.php';
+    exit;
+}
+
+// Comportement par défaut : charger le fichier PHP demandé s'il existe
+$file = __DIR__ . $path;
+if (is_file($file)) {
+    if (pathinfo($file, PATHINFO_EXTENSION) === 'php') {
+        require $file;
+        exit;
     }
+    return false; 
 }
 
-// Basic root response.
-if ($path === '/') {
-    header('Content-Type: text/plain; charset=utf-8');
-    echo "IPTV Panel API";
+// Sécurité par défaut : Rediriger vers l'API si le lien n'est pas clair
+if (strpos($path, 'player_api.php') !== false) {
+    require __DIR__ . '/player_api.php';
     exit;
 }
 
-http_response_code(404);
-header('Content-Type: text/plain; charset=utf-8');
-echo "Not Found";
-exit;
+return false;
 ?>
