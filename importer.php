@@ -1,5 +1,5 @@
 <?php
-// V8 - Importation Interactive + Correction API Stalker (VOD/Series)
+// V9 - Importation Interactive + Force Limit & Loop Stalker (VOD/Series)
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -14,8 +14,8 @@ ensure_panel_schema($pdo);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-set_time_limit(1800);
-ini_set('memory_limit', '1024M');
+set_time_limit(3600);
+ini_set('memory_limit', '2048M');
 
 function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function normalize_ext($ext, $fallback = null) {
@@ -36,7 +36,7 @@ function fetch_data_stream($url, $headers = []) {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => 'IPTV-Panel/8.0',
+        CURLOPT_USERAGENT => 'IPTV-Panel/9.0',
         CURLOPT_ENCODING => '',
         CURLOPT_TIMEOUT => 120,
         CURLOPT_CONNECTTIMEOUT => 20,
@@ -103,12 +103,15 @@ if (!$selectedProvider):
                 <option value="<?= (int)$f['id'] ?>"><?= h($f['nom']) ?> — <?= h(strtoupper($f['type'])) ?></option>
             <?php endforeach; ?>
         </select>
-        <button class="btn btn-primary w-100 py-2"><i class="fas fa-search me-2"></i>Scanner le fournisseur</button>
+        <button class="btn btn-primary w-100 py-2"><i class="fas fa-search me-2"></i>Scanner le fournisseur (Peut prendre 1 à 2 min)</button>
     </form>
   </div>
 </div>
 </body></html>
 <?php exit; endif; 
+
+// Garder la connexion active pour Railway pendant le long chargement
+if ($step > 1) { echo "<!-- " . str_repeat("KEEP_ALIVE", 100) . " -->\n"; flush(); }
 
 // Variables communes
 $f = $selectedProvider; $fid = (int)$f['id']; $nom = $f['nom']; $type = strtolower(trim($f['type']));
@@ -154,25 +157,48 @@ if ($type === 'xtream') {
     $vod_cats = stalker_load($portal, $mac, $token, 'vod', 'get_categories', [], $hs['path'], $proxy);
     if ($vod_cats['ok']) $remoteCats['movie'] = stalker_js_list($vod_cats['data']);
     
-    // Tentative standard
-    $vod_streams = stalker_load($portal, $mac, $token, 'vod', 'get_video', [], $hs['path'], $proxy);
-    if (!$vod_streams['ok'] || empty(stalker_js_list($vod_streams['data']))) {
-        // Tentative alternative si la première échoue
-        $vod_streams = stalker_load($portal, $mac, $token, 'vod', 'get_ordered_list', [], $hs['path'], $proxy);
+    // Essai 1 : Tout récupérer avec limite désactivée
+    $vod_streams = stalker_load($portal, $mac, $token, 'vod', 'get_ordered_list', ['category' => '*', 'p' => 1, 'limit' => 999999], $hs['path'], $proxy);
+    $vod_items = stalker_js_list($vod_streams['data']);
+    
+    // Essai 2 : Si le portail bloque la demande globale, on boucle catégorie par catégorie
+    if (count($vod_items) <= 50 && !empty($remoteCats['movie'])) {
+        $vod_items = [];
+        foreach ($remoteCats['movie'] as $c) {
+            $cid = $c['category_id'] ?? $c['id'] ?? '';
+            if ($cid !== '' && $cid !== '*') {
+                $res = stalker_load($portal, $mac, $token, 'vod', 'get_ordered_list', ['category' => $cid, 'p' => 1, 'limit' => 99999], $hs['path'], $proxy);
+                if ($res['ok']) {
+                    $items = stalker_js_list($res['data']);
+                    if (!empty($items)) $vod_items = array_merge($vod_items, $items);
+                }
+            }
+        }
     }
-    $remoteStreams['movie'] = stalker_js_list($vod_streams['data']);
+    $remoteStreams['movie'] = $vod_items;
 
     // 3. SÉRIES
     $series_cats = stalker_load($portal, $mac, $token, 'series', 'get_categories', [], $hs['path'], $proxy);
     if ($series_cats['ok']) $remoteCats['series'] = stalker_js_list($series_cats['data']);
     
-    // Tentative standard
-    $series_streams = stalker_load($portal, $mac, $token, 'series', 'get_ordered_list', [], $hs['path'], $proxy);
-    if (!$series_streams['ok'] || empty(stalker_js_list($series_streams['data']))) {
-        // Tentative alternative
-        $series_streams = stalker_load($portal, $mac, $token, 'series', 'get_series', [], $hs['path'], $proxy);
+    $series_streams = stalker_load($portal, $mac, $token, 'series', 'get_ordered_list', ['category' => '*', 'p' => 1, 'limit' => 999999], $hs['path'], $proxy);
+    $series_items = stalker_js_list($series_streams['data']);
+    
+    // Boucle de secours pour les séries
+    if (count($series_items) <= 50 && !empty($remoteCats['series'])) {
+        $series_items = [];
+        foreach ($remoteCats['series'] as $c) {
+            $cid = $c['category_id'] ?? $c['id'] ?? '';
+            if ($cid !== '' && $cid !== '*') {
+                $res = stalker_load($portal, $mac, $token, 'series', 'get_ordered_list', ['category' => $cid, 'p' => 1, 'limit' => 99999], $hs['path'], $proxy);
+                if ($res['ok']) {
+                    $items = stalker_js_list($res['data']);
+                    if (!empty($items)) $series_items = array_merge($series_items, $items);
+                }
+            }
+        }
     }
-    $remoteStreams['series'] = stalker_js_list($series_streams['data']);
+    $remoteStreams['series'] = $series_items;
     
 } elseif ($type === 'm3u') {
     $resp = fetch_data_stream($f['url_base']);
@@ -197,7 +223,7 @@ if ($type === 'xtream') {
     $uniq=[]; foreach($remoteCats['live'] as $c){$k=(string)$c['id'];$uniq[$k]=$c;} $remoteCats['live']=array_values($uniq);
 }
 
-// Calculer le nombre de flux par catégorie (en RAM) avec correspondances multiples
+// Calculer le nombre de flux par catégorie (en RAM)
 $catCounts = ['live'=>[], 'movie'=>[], 'series'=>[]];
 foreach ($remoteStreams as $kind => $items) {
     foreach ($items as $s) {
@@ -244,7 +270,7 @@ body{background:#0f1219;color:#eef6ff;}
         </div>
         <div>
             <a href="importer.php" class="btn btn-outline-secondary me-2">Annuler</a>
-            <button type="submit" class="btn btn-primary px-4"><i class="fas fa-download me-2"></i> Lancer l'importation SQL</button>
+            <button type="submit" class="btn btn-primary px-4" onclick="this.innerHTML='<i class=\'fas fa-spinner fa-spin me-2\'></i> Importation...';"><i class="fas fa-download me-2"></i> Lancer l'importation SQL</button>
         </div>
     </div>
 
