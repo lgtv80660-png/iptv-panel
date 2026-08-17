@@ -68,9 +68,22 @@
   function setLang(lang){if(!LANGS[lang])lang='en'; localStorage.setItem(storageLang,lang); translate(); const sel=document.querySelector('#gp-lang-select'); if(sel) sel.value=lang;}
   function mountToolbar(){
     if(document.querySelector('.gp-toolbar')) return;
-    const bar=document.createElement('div'); bar.className='gp-toolbar';
-    bar.innerHTML='<select id="gp-lang-select" class="gp-lang-select" aria-label="Language">'+Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v.flag} ${v.label}</option>`).join('')+'</select><button id="gp-theme-toggle" class="gp-theme-toggle" type="button"><i></i><span class="gp-theme-text"></span></button>';
-    document.body.appendChild(bar);
+    const bar=document.createElement('div');
+    bar.className='gp-toolbar gp-sidebar-controls';
+    bar.setAttribute('aria-label','Interface preferences');
+    bar.innerHTML='<div class="gp-control-title"><i class="fas fa-sliders"></i><span>Interface</span></div><label class="gp-control-label" for="gp-lang-select"><i class="fas fa-globe"></i><span>Language</span></label><select id="gp-lang-select" class="gp-lang-select" aria-label="Language">'+Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v.flag} ${v.label}</option>`).join('')+'</select><button id="gp-theme-toggle" class="gp-theme-toggle" type="button"><i></i><span class="gp-theme-text"></span></button>';
+    const sidebar=document.querySelector('.sidebar');
+    if(sidebar){
+      let footer=sidebar.querySelector('.gp-sidebar-footer');
+      if(!footer){
+        footer=document.createElement('div');
+        footer.className='gp-sidebar-footer';
+        sidebar.appendChild(footer);
+      }
+      footer.appendChild(bar);
+    } else {
+      document.body.appendChild(bar);
+    }
     bar.querySelector('#gp-lang-select').addEventListener('change',e=>setLang(e.target.value));
     bar.querySelector('#gp-theme-toggle').addEventListener('click',()=>setTheme(currentTheme()==='dark'?'light':'dark'));
     bar.querySelector('#gp-lang-select').value=currentLang();

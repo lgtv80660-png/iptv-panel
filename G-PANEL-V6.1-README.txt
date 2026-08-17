@@ -12,3 +12,5 @@ UI upgrade based on V6.1
 - Existing V5.1/V6 backend functionality preserved
 
 To replace the logo later, replace the PNG assets while keeping the same filenames.
+
+V6.3: language selector and dark/light theme toggle moved into the sidebar for better UX.

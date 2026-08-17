@@ -122,3 +122,114 @@ html[data-theme="dark"] .category-row:hover td {
 .gp-rtl .sidebar a {
     direction: rtl;
 }
+
+
+/* G-PANEL V6.3 — sidebar language/theme controls */
+.sidebar{
+    display:flex!important;
+    flex-direction:column!important;
+    min-height:100vh;
+}
+.gp-sidebar-footer{
+    margin-top:auto;
+    padding-top:16px;
+}
+.gp-sidebar-controls{
+    position:static!important;
+    right:auto!important;
+    left:auto!important;
+    top:auto!important;
+    width:100%;
+    display:flex!important;
+    flex-direction:column;
+    align-items:stretch!important;
+    gap:8px!important;
+    padding:12px!important;
+    background:rgba(255,255,255,.045)!important;
+    border:1px solid var(--gp-border)!important;
+    border-radius:15px!important;
+    backdrop-filter:blur(16px);
+    box-shadow:0 10px 28px rgba(0,0,0,.12);
+}
+.gp-control-title{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:0 2px 3px;
+    color:var(--gp-text);
+    font-size:11px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+}
+.gp-control-title i{color:var(--gp-cyan)}
+.gp-control-label{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    color:var(--gp-muted);
+    font-size:10px;
+    font-weight:700;
+    margin:0;
+}
+.gp-control-label i{color:var(--gp-blue)}
+.gp-lang-select{
+    width:100%!important;
+    min-width:0!important;
+    height:38px!important;
+    border-radius:10px!important;
+    padding:0 10px!important;
+    outline:none!important;
+}
+.gp-theme-toggle{
+    width:100%;
+    justify-content:center;
+    height:38px!important;
+    border-radius:10px!important;
+}
+.gp-theme-toggle i{font-size:13px}
+.gp-theme-text{font-size:12px}
+html[data-theme="dark"] .gp-sidebar-controls{
+    background:linear-gradient(180deg,rgba(14,29,49,.92),rgba(8,18,32,.92))!important;
+}
+html[data-theme="light"] .gp-sidebar-controls{
+    background:#f7f9fc!important;
+}
+html[data-theme="light"] .gp-control-title{color:#1b2b3d}
+html[data-theme="light"] .gp-control-label{color:#64748b}
+html[data-theme="light"] .gp-sidebar-controls .gp-lang-select,
+html[data-theme="light"] .gp-sidebar-controls .gp-theme-toggle{
+    background:#fff!important;
+    color:#24364a!important;
+}
+html[data-theme="dark"] .gp-sidebar-controls .gp-lang-select,
+html[data-theme="dark"] .gp-sidebar-controls .gp-theme-toggle{
+    background:#091426!important;
+    color:#eef6ff!important;
+}
+html[data-theme="dark"] .gp-sidebar-controls .gp-lang-select option{
+    background:#091426!important;
+    color:#eef6ff!important;
+}
+
+/* Remove the old floating behavior completely when mounted in the sidebar */
+.sidebar .gp-sidebar-controls{box-sizing:border-box}
+@media(max-width:1000px){
+    .sidebar .gp-sidebar-controls .gp-control-title,
+    .sidebar .gp-sidebar-controls .gp-control-label,
+    .sidebar .gp-sidebar-controls .gp-theme-text{display:none}
+    .sidebar .gp-sidebar-controls{padding:8px!important;align-items:center!important}
+    .sidebar .gp-sidebar-controls .gp-lang-select{font-size:0}
+    .sidebar .gp-sidebar-controls .gp-lang-select option{font-size:12px}
+    .sidebar .gp-sidebar-controls .gp-theme-toggle{font-size:0}
+    .sidebar .gp-sidebar-controls .gp-theme-toggle i{font-size:14px}
+}
+@media(max-width:640px){
+    .sidebar .gp-sidebar-controls{
+        position:relative!important;
+        width:100%;
+    }
+}
+.gp-rtl .gp-sidebar-footer{direction:rtl}
+.gp-rtl .gp-control-title,
+.gp-rtl .gp-control-label{flex-direction:row-reverse}
