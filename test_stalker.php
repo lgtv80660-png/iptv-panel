@@ -20,9 +20,11 @@ if (!function_exists('h')) {
 $result = null;
 $host = trim($_POST['host'] ?? '');
 $mac = trim($_POST['mac'] ?? '');
+$proxy = trim($_POST['proxy'] ?? '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $result = stalker_handshake_diagnostics($host, $mac);
+    // On transmet le proxy à la fonction de diagnostic
+    $result = stalker_handshake_diagnostics($host, $mac, $proxy);
 }
 ?>
 <!doctype html>
@@ -33,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>G-PANEL — Test Stalker</title>
 <link rel="stylesheet" href="assets/gpanel.css">
 <style>
-body{min-height:100vh}.st-wrap{max-width:1050px;margin:0 auto;padding:28px 18px}.st-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}.st-brand{display:flex;align-items:center;gap:12px}.st-brand img{height:38px;width:auto}.st-card{background:var(--gp-panel,rgba(15,27,45,.94));border:1px solid var(--gp-border,#26374d);border-radius:18px;padding:24px;box-shadow:var(--gp-shadow,0 14px 40px rgba(0,0,0,.18));margin-bottom:18px}.st-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.st-input{width:100%;padding:12px 13px;border-radius:10px;border:1px solid var(--gp-border,#33465e);background:var(--gp-bg,#0b1527);color:var(--gp-text,#eef6ff);box-sizing:border-box}.st-btn{margin-top:16px}.st-success{border-color:#16a34a}.st-error{border-color:#dc2626}.st-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.st-table th,.st-table td{padding:10px;border-bottom:1px solid var(--gp-border,#26374d);text-align:left;vertical-align:top}.ok{color:#22c55e;font-weight:800}.bad{color:#ef4444;font-weight:800}.muted{color:var(--gp-muted,#8ea0b5)}code{word-break:break-all}@media(max-width:700px){.st-grid{grid-template-columns:1fr}.st-top{align-items:flex-start;flex-direction:column}}
+body{min-height:100vh}.st-wrap{max-width:1050px;margin:0 auto;padding:28px 18px}.st-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}.st-brand{display:flex;align-items:center;gap:12px}.st-brand img{height:38px;width:auto}.st-card{background:var(--gp-panel,rgba(15,27,45,.94));border:1px solid var(--gp-border,#26374d);border-radius:18px;padding:24px;box-shadow:var(--gp-shadow,0 14px 40px rgba(0,0,0,.18));margin-bottom:18px}.st-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}.st-input{width:100%;padding:12px 13px;border-radius:10px;border:1px solid var(--gp-border,#33465e);background:var(--gp-bg,#0b1527);color:var(--gp-text,#eef6ff);box-sizing:border-box}.st-btn{margin-top:16px}.st-success{border-color:#16a34a}.st-error{border-color:#dc2626}.st-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.st-table th,.st-table td{padding:10px;border-bottom:1px solid var(--gp-border,#26374d);text-align:left;vertical-align:top}.ok{color:#22c55e;font-weight:800}.bad{color:#ef4444;font-weight:800}.muted{color:var(--gp-muted,#8ea0b5)}code{word-break:break-all}@media(max-width:700px){.st-grid{grid-template-columns:1fr}.st-top{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
@@ -49,11 +51,12 @@ body{min-height:100vh}.st-wrap{max-width:1050px;margin:0 auto;padding:28px 18px}
     </div>
   </div>
   <div class="st-card">
-    <h2>Tester Host + MAC</h2>
+    <h2>Tester Host + MAC (avec Proxy)</h2>
     <form method="post">
       <div class="st-grid">
         <div><label>Host / Portail</label><input class="st-input" name="host" value="<?= h($host) ?>" placeholder="http://tv4u1.com:8080/c/"></div>
         <div><label>Adresse MAC</label><input class="st-input" name="mac" value="<?= h($mac) ?>" placeholder="00:1A:79:14:E6:B9"></div>
+        <div><label>Proxy HTTP (IP:PORT ou IP:PORT:USER:PASS)</label><input class="st-input" name="proxy" value="<?= h($proxy) ?>" placeholder="192.168.1.1:8080"></div>
       </div>
       <button class="btn btn-primary st-btn" type="submit">Tester la connexion Stalker</button>
     </form>
