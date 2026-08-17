@@ -219,7 +219,7 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
         <a href="editor.php"><i class="fas fa-folder-open"></i> Gestion des Bouquets</a>
         <div class="gp-section-label">Gestion</div><a href="#clients"><i class="fas fa-users"></i> Gestion Clients</a>
         <a href="#sources"><i class="fas fa-server"></i> Fournisseurs (Sources)</a>
-        <a href="importer.php" target="_blank"><i class="fas fa-sync-alt"></i> Forcer l'importation</a>
+        <a href="importer.php"><i class="fas fa-sync-alt"></i> Forcer l'importation</a>
         <a href="admin.php?logout=1" style="color: #ff4757; margin-top: 30px;"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
     </aside>
 

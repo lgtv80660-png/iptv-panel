@@ -61,8 +61,36 @@ if ($selectedId > 0) {
 }
 
 if (!$selectedProvider):
-?><!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>G-PANEL — Importation</title><link rel="stylesheet" href="assets/gpanel.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>.import-shell{max-width:980px;margin:0 auto;padding:28px}.import-card{background:linear-gradient(145deg,rgba(16,31,52,.95),rgba(8,18,33,.95));border:1px solid var(--gp-border);border-radius:20px;padding:30px;box-shadow:var(--gp-shadow)}.import-logo{width:210px;display:block;margin:0 auto 8px}.import-select{font-size:15px!important}.import-btn{width:100%;padding:13px!important}</style></head><body><div class="import-shell"><div class="import-card"><img src="assets/g-panel-logo.png" class="import-logo" alt="G-PANEL"><div class="gp-brand-mini">IPTV MANAGEMENT SYSTEM</div><div class="gp-page-title"><div><div class="eyebrow">G-PANEL / Synchronisation</div><h1>Importer un fournisseur</h1></div><a href="admin.php" class="gp-chip text-decoration-none"><i class="fas fa-arrow-left"></i> Admin</a></div><p class="small" style="color:var(--gp-muted);margin:18px 0 22px;">Importation ciblée : une seule source est synchronisée. Les autres fournisseurs, leurs contenus et leurs filtres restent inchangés.</p><form method="GET"><label class="form-label">Fournisseur à synchroniser</label><select name="fournisseur_id" class="form-select import-select" required><option value="">-- Choisir un fournisseur --</option><?php foreach($fournisseurs as $f): ?><option value="<?= (int)$f['id'] ?>"><?= h($f['nom']) ?> — <?= h(strtoupper($f['type'])) ?></option><?php endforeach; ?></select><button class="btn btn-primary import-btn mt-3"><i class="fas fa-rotate me-2"></i>Lancer la synchronisation</button></form></div></div><script src="assets/gpanel-ui.js"></script>
-</body></html><?php exit; endif;
+?><!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>G-PANEL — Importation</title><link rel="stylesheet" href="assets/gpanel.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><style>.import-shell{max-width:980px;margin:0 auto;padding:28px}.import-card{background:linear-gradient(145deg,rgba(16,31,52,.95),rgba(8,18,33,.95));border:1px solid var(--gp-border);border-radius:20px;padding:30px;box-shadow:var(--gp-shadow)}.import-logo{width:210px;display:block;margin:0 auto 8px}.import-select{font-size:15px!important}.import-btn{width:100%;padding:13px!important}</style>
+<style>
+.gp-import-shell{max-width:1180px;margin:28px auto;padding:0 18px}
+.gp-import-top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px}
+.gp-import-brand{display:flex;align-items:center;gap:12px}
+.gp-import-brand img{height:34px;width:auto}
+.gp-import-title{font-weight:800;font-size:20px;color:var(--gp-text,#eef6ff)}
+.gp-import-sub{font-size:12px;color:var(--gp-muted,#8ea0b5)}
+.gp-import-actions{display:flex;gap:8px;flex-wrap:wrap}
+.gp-import-actions a{display:inline-flex;align-items:center;gap:7px;text-decoration:none}
+.gp-import-card{background:var(--gp-panel,rgba(15,27,45,.92));border:1px solid var(--gp-border,#26374d);border-radius:16px;padding:22px;box-shadow:0 14px 40px rgba(0,0,0,.18)}
+.gp-import-status{margin-top:16px}
+.gp-import-status p{margin:8px 0}
+@media(max-width:700px){.gp-import-top{align-items:flex-start;flex-direction:column}.gp-import-actions{width:100%}.gp-import-actions a{flex:1;justify-content:center}}
+</style>
+</head><body>
+<div class="gp-import-shell">
+  <div class="gp-import-top">
+    <div class="gp-import-brand">
+      <img src="assets/g-panel-logo.png" alt="G-PANEL">
+      <div><div class="gp-import-title">Importation & synchronisation</div><div class="gp-import-sub">Une seule source à la fois — les autres fournisseurs restent inchangés.</div></div>
+    </div>
+    <div class="gp-import-actions">
+      <a class="btn btn-outline-secondary" href="admin.php"><i class="fas fa-arrow-left"></i> Admin</a>
+      <a class="btn btn-outline-info" href="editor.php"><i class="fas fa-sliders-h"></i> Éditeur</a>
+    </div>
+  </div>
+  <div class="gp-import-card">
+<div class="import-shell"><div class="import-card"><img src="assets/g-panel-logo.png" class="import-logo" alt="G-PANEL"><div class="gp-brand-mini">IPTV MANAGEMENT SYSTEM</div><div class="gp-page-title"><div><div class="eyebrow">G-PANEL / Synchronisation</div><h1>Importer un fournisseur</h1></div><a href="admin.php" class="gp-chip text-decoration-none"><i class="fas fa-arrow-left"></i> Admin</a></div><p class="small" style="color:var(--gp-muted);margin:18px 0 22px;">Importation ciblée : une seule source est synchronisée. Les autres fournisseurs, leurs contenus et leurs filtres restent inchangés.</p><form method="GET"><label class="form-label">Fournisseur à synchroniser</label><select name="fournisseur_id" class="form-select import-select" required><option value="">-- Choisir un fournisseur --</option><?php foreach($fournisseurs as $f): ?><option value="<?= (int)$f['id'] ?>"><?= h($f['nom']) ?> — <?= h(strtoupper($f['type'])) ?></option><?php endforeach; ?></select><button class="btn btn-primary import-btn mt-3"><i class="fas fa-rotate me-2"></i>Lancer la synchronisation</button></form></div></div><script src="assets/gpanel-ui.js"></script>
+</div></div></body></html><?php exit; endif;
 
 $f = $selectedProvider; $fid = (int)$f['id']; $nom = $f['nom']; $type = strtolower(trim($f['type']));
 echo '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>G-PANEL — Synchronisation</title><link rel="stylesheet" href="assets/gpanel.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></head><body><div class="import-shell"><div class="import-card"><img src="assets/g-panel-logo.png" class="import-logo" style="width:190px;display:block;margin:0 auto 5px;" alt="G-PANEL"><div class="gp-brand-mini">IPTV MANAGEMENT SYSTEM</div><div class="gp-page-title"><div><div class="eyebrow">G-PANEL / Import en cours</div><h1>Synchronisation de '.h($nom).'</h1></div><span class="gp-chip"><i class="fas fa-server"></i> '.h(strtoupper($type)).'</span></div><div class="glass-panel" style="margin-top:22px;padding:18px!important;">';
@@ -123,10 +151,10 @@ if ($type === 'xtream') {
     $hs = stalker_handshake($portal, $mac);
     if (!$hs['ok']) die('<p style="color:red">❌ '.h($hs['error']).'<br>Import annulé : les données existantes ont été conservées.</p>');
     $token = $hs['token'];
-    echo '<p style="color:green">✔ Handshake Stalker OK.</p>'; flush();
-    $genres = stalker_load($portal,$mac,$token,'itv','get_genres');
+    echo '<p style="color:green">✔ Handshake Stalker OK — portail utilisé : '.h($hs['path']).'</p>'; flush();
+    $genres = stalker_load($portal,$mac,$token,'itv','get_genres',[], $hs['path']);
     if ($genres['ok']) $remoteCats['live'] = stalker_js_list($genres['data']);
-    $channels = stalker_load($portal,$mac,$token,'itv','get_all_channels');
+    $channels = stalker_load($portal,$mac,$token,'itv','get_all_channels',[], $hs['path']);
     if (!$channels['ok']) die('<p style="color:red">❌ '.h($channels['error']).'<br>Import annulé : les données existantes ont été conservées.</p>');
     $remoteStreams['live'] = stalker_js_list($channels['data']);
     echo '<p>Genres : '.count($remoteCats['live']).' — Chaînes : '.count($remoteStreams['live']).'</p>'; flush();

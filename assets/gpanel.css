@@ -282,3 +282,7 @@ html[data-theme="light"] .btn-outline-warning:hover{
   background:#4b5563 !important;
   border-color:#4b5563 !important;
 }
+
+/* V6.7 importer page */
+html[data-theme="light"] .gp-import-card{--gp-panel:#ffffff;--gp-border:#d6dee8}
+html[data-theme="light"] .gp-import-title{color:#17263a}

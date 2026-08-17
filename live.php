@@ -42,7 +42,7 @@ if ($data['type'] === 'xtream') {
     $hs = stalker_handshake($portal, $mac);
     if (!$hs['ok']) { http_response_code(502); exit('Stalker handshake failed: ' . $hs['error']); }
 
-    $resolved = stalker_resolve_stream($portal, $mac, $hs['token'], (string)$data['direct_source']);
+    $resolved = stalker_resolve_stream($portal, $mac, $hs['token'], (string)$data['direct_source'], $hs['path']);
     if (!$resolved['ok']) {
         http_response_code(502);
         exit('Stalker stream resolution failed: ' . ($resolved['error'] ?? 'unknown error'));
