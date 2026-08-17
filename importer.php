@@ -234,6 +234,10 @@ foreach ($remoteStreams as $kind=>$items) {
             if ($rid === '') $rid = $name;
             if ($name === '') $name = 'Général';
             $display = '['.$nom.'] '.$name;
+            
+            // SÉCURITÉ : Tronquer le nom de la catégorie si trop long
+            $display = mb_substr($display, 0, 250, 'UTF-8');
+            
             $vis = $oldCategoryVisibility['remote|'.$kind.'|'.$rid] ?? ($oldCategoryVisibility['name|'.$display] ?? 1);
             $insertCat->execute([$display, $vis, $fid, $rid, $kind]);
             $catMap[$rid] = (int)$pdo->lastInsertId();
@@ -270,6 +274,12 @@ foreach ($remoteStreams as $kind=>$items) {
                 }
             }
             if ($name==='' || $source==='') continue;
+            
+            // SÉCURITÉ ANTI-CRASH : Tronquer les chaînes de caractères trop longues
+            $name = mb_substr($name, 0, 250, 'UTF-8');
+            $icon = mb_substr($icon, 0, 500, 'UTF-8');
+            $plot = $plot !== null ? mb_substr($plot, 0, 1000, 'UTF-8') : null;
+            
             $localCat=$catMap[$catRid] ?? $fallback;
             $vis=$oldStreamVisibility['remote|'.$kind.'|'.$rid] ?? ($oldStreamVisibility['source|'.$kind.'|'.$source] ?? 1);
             $insertStream->execute([$fid,$name,$icon,$kind,$localCat,$source,$vis,$ext,$rid,$plot,$cast,$director,$genre,$release,$rating,$rating5,$added,$backdrop,$trailer,$runtime]);
