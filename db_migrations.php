@@ -69,3 +69,14 @@ function ensure_panel_schema(PDO $pdo): void {
         $stmt->execute([$v]);
     }
 }
+
+
+/** V5.1: remove categories whose supplier no longer exists. Safe/idempotent. */
+function cleanup_orphan_categories(PDO $pdo): int {
+    try {
+        $stmt = $pdo->query("DELETE c FROM categories c LEFT JOIN fournisseurs f ON f.id = c.fournisseur_id WHERE f.id IS NULL");
+        return $stmt->rowCount();
+    } catch (Throwable $e) {
+        return 0;
+    }
+}

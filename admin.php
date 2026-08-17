@@ -141,9 +141,20 @@ if (isset($_POST['edit_source_btn'])) {
 
 // --- SUPPRESSION SOURCE ---
 if (isset($_POST['delete_source'])) {
-    $id = $_POST['source_id'];
-    $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ?")->execute([$id]);
-    $pdo->prepare("DELETE FROM fournisseurs WHERE id = ?")->execute([$id]);
+    $id = (int)($_POST['source_id'] ?? 0);
+    if ($id > 0) {
+        try {
+            $pdo->beginTransaction();
+            // Delete all content belonging to this supplier, including categories.
+            $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM categories WHERE fournisseur_id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM fournisseurs WHERE id = ?")->execute([$id]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+    }
     header("Location: admin.php?success=deleted"); exit;
 }
 
