@@ -79,10 +79,18 @@ exit;
 endif; 
 
 // --- CODE DU PANEL ADMIN ---
-$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
-$base_dir = dirname($_SERVER['PHP_SELF']);
-if ($base_dir === '\\' || $base_dir === '/') $base_dir = '';
-$server_url = $protocol . "://" . $_SERVER['HTTP_HOST'] . $base_dir;
+// 1. Détection de la variable d'environnement Railway (ex: PUBLIC_PANEL_URL)
+// 2. Si non configurée, fallback dynamique sur le serveur hôte courant
+$public_url_env = getenv('PUBLIC_PANEL_URL') ?: ($_ENV['PUBLIC_PANEL_URL'] ?? null);
+
+if (!empty($public_url_env)) {
+    $server_url = rtrim($public_url_env, '/');
+} else {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+    $base_dir = dirname($_SERVER['PHP_SELF']);
+    if ($base_dir === '\\' || $base_dir === '/') $base_dir = '';
+    $server_url = $protocol . "://" . $_SERVER['HTTP_HOST'] . $base_dir;
+}
 
 $message = '';
 if (isset($_GET['success'])) {
@@ -127,7 +135,6 @@ if (isset($_POST['add_source'])) {
 
     $stmt = $pdo->prepare("INSERT INTO fournisseurs (nom, type, url_base, user, pass, mac_address, proxy) VALUES (?, ?, ?, ?, ?, ?, ?)");
     if($stmt->execute([$nom, $type, $url_base, $user, $pass, $mac_address, $proxy])) {
-        // Après création, importer uniquement cette nouvelle source.
         $new_source_id = (int)$pdo->lastInsertId();
         header("Location: importer.php?fournisseur_id=" . $new_source_id);
         exit;
@@ -148,7 +155,6 @@ if (isset($_POST['delete_source'])) {
     if ($id > 0) {
         try {
             $pdo->beginTransaction();
-            // Delete all content belonging to this supplier, including categories.
             $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ?")->execute([$id]);
             $pdo->prepare("DELETE FROM categories WHERE fournisseur_id = ?")->execute([$id]);
             $pdo->prepare("DELETE FROM fournisseurs WHERE id = ?")->execute([$id]);
