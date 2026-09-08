@@ -1,6 +1,8 @@
 <?php
+ob_start(); // Empêche toute erreur d'en-tête (headers) qui forcerait l'affichage HTML
+
 // On récupère le chemin de l'URL demandée
-$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);[cite: 2]
 
 // ==========================================
 // 1. PROXY AUTOMATIQUE M3U (GET.PHP)
@@ -52,18 +54,22 @@ if (strpos($path, 'get.php') !== false) {
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
                 
-                // LE CORRECTIF EST ICI : On force l'identité de VLC pour contourner le Landpage
-                curl_setopt($ch, CURLOPT_USERAGENT, 'VLC/3.0.9 LibVLC/3.0.9');
+                // L'ASTUCE EST ICI : Se faire passer pour une application IPTV légitime
+                curl_setopt($ch, CURLOPT_USERAGENT, 'IPTVSmartersPro');
+                curl_setopt($ch, CURLOPT_HTTPHEADER, array('Accept: */*', 'Connection: keep-alive'));
 
                 $response  = curl_exec($ch);
                 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 curl_close($ch);
 
-                // Anti-fuite : On empêche l'exécution de tout script de redirection si la protection s'active quand même
-                if (strpos($response, 'landpage') !== false || strpos($response, 'window.location') !== false) {
+                ob_clean(); // Nettoie la mémoire tampon pour forcer le téléchargement strict
+
+                // SÉCURITÉ : Si le serveur a quand même envoyé le Javascript Landpage
+                if (stripos($response, '<script') !== false || stripos($response, 'landpage') !== false) {
                     http_response_code(403);
                     header('Content-Type: text/plain');
-                    echo "Erreur : Le serveur source refuse l'accès direct et a activé sa protection anti-bot.";
+                    echo "BLOCAGE ANTI-DDOS : Le serveur source (88.255.216.16) refuse de donner le fichier et force l'affichage de sa page de sécurité (/landpage).\n";
+                    echo "Solution : Demandez à l'administrateur du serveur source d'autoriser l'User-Agent 'IPTVSmartersPro' ou de désactiver 'Force Landpage'.";
                     exit;
                 }
 
@@ -71,69 +77,72 @@ if (strpos($path, 'get.php') !== false) {
                     $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
                     $public_domain = $scheme . "://" . $_SERVER['HTTP_HOST'];
 
+                    // Remplacement des liens internes
                     $response = str_replace($source_base, $public_domain, $response);
 
                     header('Content-Type: audio/x-mpegurl');
                     header('Content-Disposition: attachment; filename="playlist.m3u"');
                     echo $response;
-                    exit;
+                    exit; // Stoppe l'exécution ici
                 }
             }
         } catch (Exception $e) {
-            error_log("Proxy M3U Error: " . $e->getMessage());
+            error_log("Proxy Error: " . $e->getMessage());
         }
     }
-
+    
+    ob_clean();
     http_response_code(403);
     header('Content-Type: text/plain');
-    echo "Erreur : Compte invalide ou impossible de contacter le serveur source.";
+    echo "Erreur : Impossible d'identifier la source ou accès refusé.";
     exit;
 }
 
-// 2. Interception pour le DIRECT (Live)
-if (preg_match('#^/live/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
-    $_GET['username'] = $matches[1];
-    $_GET['password'] = $matches[2];
-    $_GET['stream']   = $matches[3];
-    $_GET['extension']= $matches[4];
-    require __DIR__ . '/live.php';
-    exit;
+// 2. Interception pour le DIRECT (Live)[cite: 2]
+if (preg_match('#^/live/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {[cite: 2]
+    $_GET['username'] = $matches[1];[cite: 2]
+    $_GET['password'] = $matches[2];[cite: 2]
+    $_GET['stream']   = $matches[3];[cite: 2]
+    $_GET['extension']= $matches[4];[cite: 2]
+    require __DIR__ . '/live.php';[cite: 2]
+    exit;[cite: 2]
 }
 
-// 3. Interception pour la VOD (Films)
-if (preg_match('#^/movie/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
-    $_GET['username'] = $matches[1];
-    $_GET['password'] = $matches[2];
-    $_GET['stream']   = $matches[3];
-    $_GET['extension']= $matches[4];
-    require __DIR__ . '/vod.php';
-    exit;
+// 3. Interception pour la VOD (Films)[cite: 2]
+if (preg_match('#^/movie/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {[cite: 2]
+    $_GET['username'] = $matches[1];[cite: 2]
+    $_GET['password'] = $matches[2];[cite: 2]
+    $_GET['stream']   = $matches[3];[cite: 2]
+    $_GET['extension']= $matches[4];[cite: 2]
+    require __DIR__ . '/vod.php';[cite: 2]
+    exit;[cite: 2]
 }
 
-// 4. Interception pour les SÉRIES
-if (preg_match('#^/series/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
-    $_GET['username'] = $matches[1];
-    $_GET['password'] = $matches[2];
-    $_GET['stream']   = $matches[3];
-    $_GET['extension']= $matches[4];
-    require __DIR__ . '/series.php';
-    exit;
+// 4. Interception pour les SÉRIES[cite: 2]
+if (preg_match('#^/series/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {[cite: 2]
+    $_GET['username'] = $matches[1];[cite: 2]
+    $_GET['password'] = $matches[2];[cite: 2]
+    $_GET['stream']   = $matches[3];[cite: 2]
+    $_GET['extension']= $matches[4];[cite: 2]
+    require __DIR__ . '/series.php';[cite: 2]
+    exit;[cite: 2]
 }
 
-// Comportement par défaut pour les autres fichiers
-$file = __DIR__ . $path;
-if (is_file($file)) {
-    if (pathinfo($file, PATHINFO_EXTENSION) === 'php') {
-        require $file;
-        exit;
+// Comportement par défaut : charger le fichier PHP demandé s'il existe[cite: 2]
+$file = __DIR__ . $path;[cite: 2]
+if (is_file($file)) {[cite: 2]
+    if (pathinfo($file, PATHINFO_EXTENSION) === 'php') {[cite: 2]
+        require $file;[cite: 2]
+        exit;[cite: 2]
     }
-    return false; 
+    return false;[cite: 2]
 }
 
-if (strpos($path, 'player_api.php') !== false) {
-    require __DIR__ . '/player_api.php';
-    exit;
+// Sécurité par défaut : Rediriger vers l'API si le lien n'est pas clair[cite: 2]
+if (strpos($path, 'player_api.php') !== false) {[cite: 2]
+    require __DIR__ . '/player_api.php';[cite: 2]
+    exit;[cite: 2]
 }
 
-return false;
+return false;[cite: 2]
 ?>
