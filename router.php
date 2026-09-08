@@ -11,13 +11,16 @@ if (strpos($path, 'get.php') !== false) {
     $username = $_GET['username'] ?? $_GET['user'] ?? null;
     $password = $_GET['password'] ?? $_GET['pass'] ?? null;
 
+    $source_base = null;
+
     if ($username && $password) {
         try {
-            // Recherche de la ligne en BDD
+            // 1. Recherche de la ligne dans 'lines'
             $stmt = $pdo->prepare("SELECT * FROM lines WHERE (username = :u1 OR user = :u2) AND (password = :p1 OR pass = :p2) LIMIT 1");
             $stmt->execute(['u1' => $username, 'u2' => $username, 'p1' => $password, 'p2' => $password]);
             $line = $stmt->fetch(PDO::FETCH_ASSOC);
 
+            // 2. Recherche dans 'users'
             if (!$line) {
                 $stmt = $pdo->prepare("SELECT * FROM users WHERE (username = :u1 OR user = :u2) AND (password = :p1 OR pass = :p2) LIMIT 1");
                 $stmt->execute(['u1' => $username, 'u2' => $username, 'p1' => $password, 'p2' => $password]);
@@ -26,36 +29,50 @@ if (strpos($path, 'get.php') !== false) {
 
             if ($line) {
                 $server_field = $line['server_url'] ?? $line['host'] ?? $line['server'] ?? $line['dns'] ?? null;
-                
                 if ($server_field) {
                     $source_base = rtrim($server_field, '/');
-                    $upstream_url = $source_base . $_SERVER['REQUEST_URI'];
+                }
+            }
 
-                    // Aspiration via cURL avec User-Agent valide
-                    $ch = curl_init();
-                    curl_setopt($ch, CURLOPT_URL, $upstream_url);
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                    curl_setopt($ch, CURLOPT_USERAGENT, !empty($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'IPTVSmart/1.0');
-
-                    $response  = curl_exec($ch);
-                    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-
-                    if ($http_code === 200 && $response !== false) {
-                        $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
-                        $public_domain = $scheme . "://" . $_SERVER['HTTP_HOST'];
-
-                        // Remplacement de toutes les URLs du serveur source par votre domaine Railway
-                        $response = str_replace($source_base, $public_domain, $response);
-
-                        header('Content-Type: audio/x-mpegurl');
-                        header('Content-Disposition: attachment; filename="playlist.m3u"');
-                        echo $response;
-                        exit; // Mettre fin au script ici pour empêcher get.php local de s'exécuter
+            // 3. Fallback : Si non trouvé dans la ligne, chercher le serveur principal dans la BDD
+            if (!$source_base) {
+                try {
+                    $stmt = $pdo->query("SELECT domain_name FROM servers LIMIT 1");
+                    $server_row = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($server_row && !empty($server_row['domain_name'])) {
+                        $source_base = rtrim($server_row['domain_name'], '/');
                     }
+                } catch (Exception $e) {}
+            }
+
+            // 4. Exécution du Proxy si la source a été identifiée
+            if ($source_base) {
+                $upstream_url = $source_base . $_SERVER['REQUEST_URI'];
+
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $upstream_url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                // Utilisation d'un User-Agent générique de lecteur IPTV pour bloquer la redirection /landpage
+                curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36');
+
+                $response  = curl_exec($ch);
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($http_code === 200 && $response !== false) {
+                    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
+                    $public_domain = $scheme . "://" . $_SERVER['HTTP_HOST'];
+
+                    // Remplace le serveur d'origine par le domaine Railway dans le fichier M3U
+                    $response = str_replace($source_base, $public_domain, $response);
+
+                    header('Content-Type: audio/x-mpegurl');
+                    header('Content-Disposition: attachment; filename="playlist.m3u"');
+                    echo $response;
+                    exit;
                 }
             }
         } catch (Exception $e) {
@@ -63,15 +80,16 @@ if (strpos($path, 'get.php') !== false) {
         }
     }
 
-    // SI LE COMPTE N'EST PAS TROUVÉ OU SI LE PROXY ÉCHOUE :
-    // On bloque ici pour interdire à get.php local de faire sa redirection /landpage
+    // SI LE PROXY N'A PAS PU RÉCUPÉRER LA PLAYLIST
+    // On bloque ici avec un message texte propre au lieu de laisser exécuter get.php local
     http_response_code(403);
-    echo "Access denied or account not found.";
+    header('Content-Type: text/plain');
+    echo "Erreur : Compte invalide ou impossible de contacter le serveur source.";
     exit;
 }
 
 // 2. Interception pour le DIRECT (Live)
-if (preg_match('#^/live/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
+if (preg_match('#^/live/cite: 2]([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
     $_GET['username'] = $matches[1];
     $_GET['password'] = $matches[2];
     $_GET['stream']   = $matches[3];
@@ -81,7 +99,7 @@ if (preg_match('#^/live/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
 }
 
 // 3. Interception pour la VOD (Films)
-if (preg_match('#^/movie/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
+if (preg_match('#^/movie/cite: 2]([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
     $_GET['username'] = $matches[1];
     $_GET['password'] = $matches[2];
     $_GET['stream']   = $matches[3];
@@ -91,7 +109,7 @@ if (preg_match('#^/movie/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
 }
 
 // 4. Interception pour les SÉRIES
-if (preg_match('#^/series/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
+if (preg_match('#^/series/cite: 2]([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
     $_GET['username'] = $matches[1];
     $_GET['password'] = $matches[2];
     $_GET['stream']   = $matches[3];
