@@ -3,6 +3,9 @@ RewriteEngine On
 
 RewriteBase /
 
+# FORCER GET.PHP A PASSER PAR LE PROXY
+RewriteRule ^get\.php$ router.php [L,QSA]
+
 # 1. Direct TV (Live)
 RewriteRule ^live/([^/]+)/([^/]+)/([^/]+)\.(.*)$ live.php?username=$1&password=$2&stream=$3&extension=$4 [L,QSA]
 
