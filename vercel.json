@@ -3,7 +3,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "tvz.up.railway.app/$1"
+      "dest": "https://tvz.up.railway.app/$1"
     }
   ]
 }
