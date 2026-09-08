@@ -3,17 +3,17 @@
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // ==========================================
-// 1. PROXY AUTOMATIQUE M3U (INTERCEPTION FORCEE)
+// 1. PROXY AUTOMATIQUE M3U (GET.PHP)
 // ==========================================
 if (strpos($path, 'get.php') !== false) {
     require_once __DIR__ . '/config.php';
 
-    $username = $_GET['username'] ?? null;
-    $password = $_GET['password'] ?? null;
+    $username = $_GET['username'] ?? $_GET['user'] ?? null;
+    $password = $_GET['password'] ?? $_GET['pass'] ?? null;
 
     if ($username && $password) {
         try {
-            // Recherche du serveur d'origine en BDD
+            // Recherche de la ligne en BDD
             $stmt = $pdo->prepare("SELECT * FROM lines WHERE (username = :u1 OR user = :u2) AND (password = :p1 OR pass = :p2) LIMIT 1");
             $stmt->execute(['u1' => $username, 'u2' => $username, 'p1' => $password, 'p2' => $password]);
             $line = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -31,16 +31,14 @@ if (strpos($path, 'get.php') !== false) {
                     $source_base = rtrim($server_field, '/');
                     $upstream_url = $source_base . $_SERVER['REQUEST_URI'];
 
-                    // Reconstitution avec User-Agent IPTV pour éviter la redirection /landpage
+                    // Aspiration via cURL avec User-Agent valide
                     $ch = curl_init();
                     curl_setopt($ch, CURLOPT_URL, $upstream_url);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                    // On simule un lecteur IPTV légitime pour que le serveur source envoie le M3U au lieu de /landpage
-                    $user_agent = !empty($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'IPTVSmart/1.0';
-                    curl_setopt($ch, CURLOPT_USERAGENT, $user_agent);
+                    curl_setopt($ch, CURLOPT_USERAGENT, !empty($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'IPTVSmart/1.0');
 
                     $response  = curl_exec($ch);
                     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -50,13 +48,13 @@ if (strpos($path, 'get.php') !== false) {
                         $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
                         $public_domain = $scheme . "://" . $_SERVER['HTTP_HOST'];
 
-                        // Remplacement automatique du serveur distant par le domaine Railway
+                        // Remplacement de toutes les URLs du serveur source par votre domaine Railway
                         $response = str_replace($source_base, $public_domain, $response);
 
                         header('Content-Type: audio/x-mpegurl');
                         header('Content-Disposition: attachment; filename="playlist.m3u"');
                         echo $response;
-                        exit; // Mettre fin au script ici pour empecher get.php local d'exécuter la redirection /landpage
+                        exit; // Mettre fin au script ici pour empêcher get.php local de s'exécuter
                     }
                 }
             }
@@ -64,6 +62,12 @@ if (strpos($path, 'get.php') !== false) {
             error_log("Proxy M3U Error: " . $e->getMessage());
         }
     }
+
+    // SI LE COMPTE N'EST PAS TROUVÉ OU SI LE PROXY ÉCHOUE :
+    // On bloque ici pour interdire à get.php local de faire sa redirection /landpage
+    http_response_code(403);
+    echo "Access denied or account not found.";
+    exit;
 }
 
 // 2. Interception pour le DIRECT (Live)
@@ -96,7 +100,7 @@ if (preg_match('#^/series/([^/]+)/([^/]+)/([^/]+)\.(.*)$#i', $path, $matches)) {
     exit;
 }
 
-// Comportement par défaut
+// Comportement par défaut pour les autres fichiers
 $file = __DIR__ . $path;
 if (is_file($file)) {
     if (pathinfo($file, PATHINFO_EXTENSION) === 'php') {
