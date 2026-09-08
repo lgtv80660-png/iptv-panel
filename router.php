@@ -1,7 +1,6 @@
 <?php
 /**
  * Router Central & Proxy Automatique - G-PANEL IPTV
- * Redirige et relaie les requêtes M3U / Xtream Codes
  */
 
 require_once __DIR__ . '/config.php';
@@ -10,15 +9,14 @@ require_once __DIR__ . '/config.php';
 $request_uri = $_SERVER['REQUEST_URI'];
 $user_agent  = $_SERVER['HTTP_USER_AGENT'] ?? 'IPTV-Proxy';
 
-// Détermination dynamique du domaine public (ex: http://www.ztv.work.gd)
+// Domaine public dynamique
 $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
 $public_domain = $scheme . "://" . $_SERVER['HTTP_HOST'];
 
-// 2. Extraire les identifiants utilisateur (GET ou URL)
-$username = $_GET['username'] ?? null;
-$password = $_GET['password'] ?? null;
+// 2. Extraire les identifiants
+$username = $_GET['username'] ?? $_GET['user'] ?? null;
+$password = $_GET['password'] ?? $_GET['pass'] ?? null;
 
-// Si l'URL utilise le format Xtream Codes (/live/username/password/stream_id.ts)
 if (!$username || !$password) {
     $uri_parts = explode('/', trim(parse_url($request_uri, PHP_URL_PATH), '/'));
     if (count($uri_parts) >= 3) {
@@ -27,33 +25,50 @@ if (!$username || !$password) {
     }
 }
 
-// 3. Récupération DYNAMIQUE du serveur source depuis la BDD uniquement
 $stream_url = null;
 $source_server_base = null;
 
+// 3. Recherche adaptative en Base de Données
 if ($username && $password) {
     try {
-        $stmt = $pdo->prepare("SELECT * FROM lines WHERE username = :username AND password = :password LIMIT 1");
-        $stmt->execute(['username' => $username, 'password' => $password]);
+        // Tentative 1: Table 'lines'
+        $stmt = $pdo->prepare("SELECT * FROM lines WHERE (username = :u1 OR user = :u2) AND (password = :p1 OR pass = :p2) LIMIT 1");
+        $stmt->execute(['u1' => $username, 'u2' => $username, 'p1' => $password, 'p2' => $password]);
         $line = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($line && !empty($line['server_url'])) {
-            $source_server_base = rtrim($line['server_url'], '/');
-            $stream_url = $source_server_base . $request_uri;
+        // Tentative 2: Table 'users' si 'lines' ne renvoie rien
+        if (!$line) {
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE (username = :u1 OR user = :u2) AND (password = :p1 OR pass = :p2) LIMIT 1");
+            $stmt->execute(['u1' => $username, 'u2' => $username, 'p1' => $password, 'p2' => $password]);
+            $line = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+
+        if ($line) {
+            // Identifier le champ contenant l'URL du serveur source
+            $server_field = $line['server_url'] ?? $line['host'] ?? $line['server'] ?? $line['dns'] ?? null;
+            
+            if ($server_field) {
+                $source_server_base = rtrim($server_field, '/');
+                $stream_url = $source_server_base . $request_uri;
+            }
         }
     } catch (Exception $e) {
-        // Log d'erreur BDD si nécessaire
+        error_log("DB Router Error: " . $e->getMessage());
     }
 }
 
-// Si aucun serveur source n'est trouvé dans la BDD pour cet utilisateur, on stoppe net (pas de fallback en dur)
+// 4. Si aucune correspondance n'est trouvée
 if (!$stream_url || !$source_server_base) {
-    http_response_code(404);
-    echo "Error: Invalid credentials or missing source server configuration.";
+    http_response_code(401);
+    header('Content-Type: application/json');
+    echo json_encode([
+        "status" => "error",
+        "message" => "Invalid credentials or source server URL not found in database for user: " . htmlspecialchars($username)
+    ]);
     exit();
 }
 
-// 4. TRAITEMENT PROXY AUTOMATIQUE POUR LES PLAYLISTS M3U (get.php)
+// 5. Traitement Proxy M3U (get.php)
 if (strpos($request_uri, 'get.php') !== false || isset($_GET['type'])) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $stream_url);
@@ -68,21 +83,19 @@ if (strpos($request_uri, 'get.php') !== false || isset($_GET['type'])) {
     curl_close($ch);
 
     if ($http_code === 200 && $response !== false) {
-        // Remplacement dynamique : remplace l'URL source de la BDD par votre domaine public
         $response = str_replace($source_server_base, $public_domain, $response);
 
-        // Renvoyer le fichier M3U directement au lecteur
         header('Content-Type: audio/x-mpegurl');
         header('Content-Disposition: attachment; filename="playlist.m3u"');
         echo $response;
         exit();
     } else {
         http_response_code(502);
-        echo "Error: Unable to fetch data from upstream source.";
+        echo "Error: Unable to fetch data from source server ($http_code).";
         exit();
     }
 }
 
-// 5. POUR LES FLUX STREAMING DIRECTS
+// 6. Streaming Direct
 header("Location: " . $stream_url);
 exit();
