@@ -403,7 +403,6 @@ elseif ($action === 'get_series_info') {
 // ==========================================
 else {
     $host = $_SERVER['HTTP_HOST'];
-    $port = isset($_SERVER['SERVER_PORT']) ? (string)$_SERVER['SERVER_PORT'] : '80';
 
     echo json_encode([
         'user_info' => [
@@ -421,9 +420,9 @@ else {
         ], 
         'server_info' => [
             'url' => $host, 
-            'port' => $port, 
+            'port' => '80', 
             'https_port' => '443',
-            'server_protocol' => $scheme,
+            'server_protocol' => 'https',
             'rtmp_port' => '8880',
             'timezone' => 'Europe/Paris',
             'timestamp_now' => time(),
