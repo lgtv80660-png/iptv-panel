@@ -1,16 +1,19 @@
 <?php
-require 'config.php';
-require 'db_migrations.php';
-ensure_panel_schema($pdo);
-
+// ==========================================
+// 0. EN-TÊTES CORS & MÉTHODE OPTIONS (EN PREMIER)
+// ==========================================
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { 
-    http_response_code(200); 
-    exit; 
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
 }
+
+require 'config.php';
+require 'db_migrations.php';
+ensure_panel_schema($pdo);
 
 header('Content-Type: application/json; charset=utf-8');
 
