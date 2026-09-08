@@ -50,7 +50,6 @@ function fetch_data_proxy($url) {
     return $result;
 }
 
-
 function normalize_api_extension($ext) {
     $ext = strtolower(trim((string)$ext));
     $ext = preg_replace('/[^a-z0-9]/i', '', $ext);
@@ -187,7 +186,6 @@ elseif ($action === 'get_vod_info') {
         'episode_run_time' => (string)($movie['vod_runtime'] ?? '')
     ];
 
-    // Lazy metadata enrichment: one provider request only when detailed data is missing.
     if ($movie['type'] === 'xtream' && (trim((string)$movie['vod_plot']) === '' || trim((string)$movie['stream_icon']) === '' || trim((string)$movie['vod_cast']) === '' || trim((string)$movie['vod_director']) === '' || trim((string)$movie['vod_genre']) === '' || trim((string)$movie['vod_release_date']) === '' || trim((string)$movie['vod_backdrop']) === '')) {
         $remoteUrl = rtrim((string)$movie['url_base'], '/') . '/player_api.php?' . http_build_query([
             'username'=>$movie['user'], 'password'=>$movie['pass'], 'action'=>'get_vod_info', 'vod_id'=>$movie['direct_source']
@@ -286,7 +284,6 @@ elseif ($action === 'get_series') {
     echo json_encode($result);
 }
 elseif ($action === 'get_series_info') {
-    // Xtream-compatible parameter is series_id.
     $local_series_id = trim((string)($_REQUEST['series_id'] ?? ''));
 
     if ($local_series_id === '') {
@@ -323,7 +320,6 @@ elseif ($action === 'get_series_info') {
         exit;
     }
 
-    // Cache series metadata returned by the provider.
     $seriesInfo = is_array($data['info'] ?? null) ? $data['info'] : [];
     $seriesCover = (string)($seriesInfo['cover'] ?? $seriesInfo['cover_big'] ?? $series['stream_icon'] ?? '');
     $seriesPlot = (string)($seriesInfo['plot'] ?? '');
@@ -340,8 +336,6 @@ elseif ($action === 'get_series_info') {
     $upSeries = $pdo->prepare("UPDATE streams SET stream_icon=?, vod_plot=?, vod_cast=?, vod_director=?, vod_genre=?, vod_release_date=?, vod_rating=?, vod_rating_5based=?, vod_backdrop=?, vod_trailer=?, vod_runtime=? WHERE stream_id=?");
     $upSeries->execute([$seriesCover,$seriesPlot,$seriesCast,$seriesDirector,$seriesGenre,$seriesRelease,$seriesRating,$seriesRating5,$seriesBackdrop,$seriesTrailer,$seriesRuntime,$local_series_id]);
 
-    // Keep the provider episode ID internally, but expose the local episode ID
-    // to clients so /series/... can resolve it through our proxy.
     $stmt_check = $pdo->prepare("SELECT stream_id, container_extension, visible
                                  FROM streams
                                  WHERE fournisseur_id = ? AND stream_type = 'episode' AND direct_source = ?
@@ -385,8 +379,6 @@ elseif ($action === 'get_series_info') {
             $ep['container_extension'] = $ep_ext;
             $ep['custom_sid'] = '';
 
-            // Local playable URL. Some Xtream clients prefer direct_source
-            // instead of constructing /series/... themselves.
             $ep['direct_source'] = $base_proxy_url . '/series/'
                 . rawurlencode($user) . '/'
                 . rawurlencode($pass) . '/'
@@ -397,8 +389,6 @@ elseif ($action === 'get_series_info') {
     }
     unset($episodes_list);
 
-    // Make sure standard Xtream clients receive series metadata even if the
-    // provider omits some optional keys.
     if (!isset($data['info']) || !is_array($data['info'])) $data['info'] = [];
     if (!isset($data['info']['name'])) $data['info']['name'] = $series['stream_name'];
     if (!isset($data['info']['cover'])) $data['info']['cover'] = $series['stream_icon'] ?? '';
@@ -409,15 +399,17 @@ elseif ($action === 'get_series_info') {
 }
 
 // ==========================================
-// 4. RÉPONSE D'AUTHENTIFICATION DE BASE (VALIDATION DE CONNEXION)
+// 4. RÉPONSE D'AUTHENTIFICATION COMPATIBLE XTREAM CODES
 // ==========================================
 else {
     $host = $_SERVER['HTTP_HOST'];
+    $port = isset($_SERVER['SERVER_PORT']) ? (string)$_SERVER['SERVER_PORT'] : '80';
 
     echo json_encode([
         'user_info' => [
-            'username' => $client['username'], 
-            'password' => $client['password'], 
+            'username' => (string)$client['username'], 
+            'password' => (string)$client['password'], 
+            'message' => 'Welcome',
             'auth' => 1, 
             'status' => 'Active', 
             'exp_date' => '1798761600',
@@ -429,14 +421,15 @@ else {
         ], 
         'server_info' => [
             'url' => $host, 
-            'port' => '443', 
+            'port' => $port, 
             'https_port' => '443',
-            'server_protocol' => 'https',
+            'server_protocol' => $scheme,
             'rtmp_port' => '8880',
             'timezone' => 'Europe/Paris',
             'timestamp_now' => time(),
             'time_now' => date('Y-m-d H:i:s')
         ]
-    ]);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
 }
 ?>
