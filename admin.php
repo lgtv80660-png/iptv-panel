@@ -78,11 +78,11 @@ if (!isset($_SESSION['admin_logged']) || $_SESSION['admin_logged'] !== true):
 exit; 
 endif; 
 
-// --- CODE DU PANEL ADMIN ---
-$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+$protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? "https" : "http";
+$host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
 $base_dir = dirname($_SERVER['PHP_SELF']);
 if ($base_dir === '\\' || $base_dir === '/') $base_dir = '';
-$server_url = $protocol . "://" . $_SERVER['HTTP_HOST'] . $base_dir;
+$server_url = $protocol . "://" . $host . $base_dir;
 
 $message = '';
 if (isset($_GET['success'])) {
@@ -91,7 +91,6 @@ if (isset($_GET['success'])) {
     if ($_GET['success'] == 'deleted') $message = '<div class="alert alert-warning"><i class="fas fa-trash"></i> Élément supprimé !</div>';
 }
 
-// --- AJOUT CLIENT ---
 if (isset($_POST['add_client'])) {
     $stmt = $pdo->prepare("INSERT INTO clients (username, password) VALUES (?, ?)");
     if($stmt->execute([$_POST['username'], $_POST['password']])) {
@@ -99,7 +98,6 @@ if (isset($_POST['add_client'])) {
     }
 }
 
-// --- MODIFICATION CLIENT ---
 if (isset($_POST['edit_client_btn'])) {
     $stmt = $pdo->prepare("UPDATE clients SET username = ?, password = ? WHERE id = ?");
     if($stmt->execute([$_POST['edit_client_username'], $_POST['edit_client_password'], $_POST['client_id']])) {
@@ -107,7 +105,6 @@ if (isset($_POST['edit_client_btn'])) {
     }
 }
 
-// --- SUPPRESSION CLIENT ---
 if (isset($_POST['delete_client'])) {
     $stmt = $pdo->prepare("DELETE FROM clients WHERE id = ?");
     if($stmt->execute([$_POST['client_id']])) {
@@ -115,7 +112,6 @@ if (isset($_POST['delete_client'])) {
     }
 }
 
-// --- AJOUT SOURCE ---
 if (isset($_POST['add_source'])) {
     $nom = $_POST['nom'];
     $type = $_POST['type'];
@@ -127,19 +123,16 @@ if (isset($_POST['add_source'])) {
 
     $stmt = $pdo->prepare("INSERT INTO fournisseurs (nom, type, url_base, user, pass, mac_address, proxy) VALUES (?, ?, ?, ?, ?, ?, ?)");
     if($stmt->execute([$nom, $type, $url_base, $user, $pass, $mac_address, $proxy])) {
-        // Après création, importer uniquement cette nouvelle source.
         $new_source_id = (int)$pdo->lastInsertId();
         header("Location: importer.php?fournisseur_id=" . $new_source_id);
         exit;
     }
 }
 
-// --- MODIFICATION SOURCE ---
 if (isset($_POST['edit_source_btn'])) {
     $source_id = (int)($_POST['source_id'] ?? 0);
     $new_nom   = trim($_POST['edit_nom'] ?? '');
 
-    // Récupérer l'ancien nom du fournisseur avant la mise à jour
     $stmtOld = $pdo->prepare("SELECT nom FROM fournisseurs WHERE id = ?");
     $stmtOld->execute([$source_id]);
     $old_nom = $stmtOld->fetchColumn();
@@ -147,7 +140,6 @@ if (isset($_POST['edit_source_btn'])) {
     $stmt = $pdo->prepare("UPDATE fournisseurs SET nom = ?, url_base = ?, user = ?, pass = ?, mac_address = ?, proxy = ? WHERE id = ?");
     if($stmt->execute([$new_nom, $_POST['edit_url'], $_POST['edit_user'], $_POST['edit_pass'], $_POST['edit_mac_address'] ?? null, $_POST['edit_proxy'] ?? null, $source_id])) {
         
-        // Si le nom du fournisseur a été modifié, mettre à jour directement les libellés des catégories existantes
         if ($old_nom && $old_nom !== $new_nom) {
             $oldTag = '[' . $old_nom . ']';
             $newTag = '[' . $new_nom . ']';
@@ -159,13 +151,11 @@ if (isset($_POST['edit_source_btn'])) {
     }
 }
 
-// --- SUPPRESSION SOURCE ---
 if (isset($_POST['delete_source'])) {
     $id = (int)($_POST['source_id'] ?? 0);
     if ($id > 0) {
         try {
             $pdo->beginTransaction();
-            // Supprimer tout le contenu lié à ce fournisseur, y compris les catégories
             $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ?")->execute([$id]);
             $pdo->prepare("DELETE FROM categories WHERE fournisseur_id = ?")->execute([$id]);
             $pdo->prepare("DELETE FROM fournisseurs WHERE id = ?")->execute([$id]);
@@ -313,7 +303,6 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                             <input type="url" name="url_base" class="form-control" required placeholder="http://server.com:8080">
                         </div>
                         
-                        <!-- Champs pour Xtream -->
                         <div class="row" id="auth_fields_xtream">
                             <div class="col-6 mb-3">
                                 <label class="form-label">Utilisateur</label>
@@ -325,7 +314,6 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                             </div>
                         </div>
 
-                        <!-- Champ pour Stalker (Adresse MAC et Proxy) -->
                         <div id="auth_fields_stalker" style="display: none;">
                             <div class="mb-3">
                                 <label class="form-label">Adresse MAC</label>
@@ -363,15 +351,12 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                                     <td><code><?= htmlspecialchars($c['password']) ?></code></td>
                                     <td><span class="badge-active"><i class="fas fa-circle me-1" style="font-size:8px;"></i> Actif</span></td>
                                     <td class="text-end">
-                                        <!-- Bouton Lien M3U -->
                                         <button class="btn btn-sm btn-info-custom me-1" onclick="showCredentials('<?= htmlspecialchars($c['username']) ?>', '<?= htmlspecialchars($c['password']) ?>')">
                                             <i class="fas fa-link"></i> Lien
                                         </button>
-                                        <!-- Bouton Modifier Client -->
                                         <button class="btn btn-sm btn-outline-info me-1" onclick="editClientModal('<?= $c['id'] ?>', '<?= addslashes(htmlspecialchars($c['username'])) ?>', '<?= addslashes(htmlspecialchars($c['password'])) ?>')">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        <!-- Bouton Supprimer Client -->
                                         <form method="POST" style="display:inline;" onsubmit="return confirm('Supprimer ce client ?');">
                                             <input type="hidden" name="client_id" value="<?= $c['id'] ?>">
                                             <button type="submit" name="delete_client" class="btn btn-sm btn-outline-danger">
@@ -437,7 +422,6 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
         <div class="text-center" style="color:#536a83;font-size:11px;padding:8px 0 4px;letter-spacing:.4px;">G-PANEL • IPTV MANAGEMENT SYSTEM</div>
     </main>
 
-    <!-- Modal Affichage Lien M3U Xtream -->
     <div class="modal fade" id="credentialsModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -456,7 +440,6 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
       </div>
     </div>
 
-    <!-- Modal Modification Client -->
     <div class="modal fade" id="editClientModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -485,7 +468,6 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
       </div>
     </div>
 
-    <!-- Modal Modification Fournisseur -->
     <div class="modal fade" id="editSourceModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -511,7 +493,7 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
                     </div>
                     <div class="col-6 mb-3">
                         <label class="form-label">Mot de passe</label>
-                        <input type="text" name="edit_pass" id="edit_source_pass" class="form-control">
+                        <input type="text" name="edit_source_pass" class="form-control" id="edit_source_pass">
                     </div>
                 </div>
                 <div class="mb-3">
@@ -534,7 +516,9 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const serverBaseUrl = "<?= $server_url ?>";
+        // Utilisation dynamique de window.location.origin pour garantir que le domaine affiché est EXACTEMENT celui utilisé dans le navigateur
+        const currentPath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+        const serverBaseUrl = window.location.origin + currentPath;
 
         function toggleFields() {
             const type = document.getElementById('source_type').value;
@@ -556,9 +540,22 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
 
         function showCredentials(username, password) {
             let m3uLink = `${serverBaseUrl}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`;
-            document.getElementById('modal-link-box').innerText = m3uLink;
-            new bootstrap.Modal(document.getElementById('credentialsModal')).show();
+            
+            // Mise à jour de la zone de texte dans le modal standard
+            const box = document.getElementById('modal-link-box');
+            if (box) box.innerText = m3uLink;
+
+            // Mise à jour des éventuels blocs créés dynamiquement par gpanel-ui.js
+            document.querySelectorAll('.copy-box, .modal-body code').forEach(el => {
+                el.innerText = m3uLink;
+            });
+
+            const modalElement = document.getElementById('credentialsModal');
+            if (modalElement) {
+                new bootstrap.Modal(modalElement).show();
+            }
         }
+        window.showCredentials = showCredentials;
 
         function editClientModal(id, username, password) {
             document.getElementById('edit_client_id').value = id;
