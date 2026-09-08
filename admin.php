@@ -79,18 +79,10 @@ exit;
 endif; 
 
 // --- CODE DU PANEL ADMIN ---
-// 1. Détection de la variable d'environnement Railway (ex: PUBLIC_PANEL_URL)
-// 2. Si non configurée, fallback dynamique sur le serveur hôte courant
-$public_url_env = getenv('PUBLIC_PANEL_URL') ?: ($_ENV['PUBLIC_PANEL_URL'] ?? null);
-
-if (!empty($public_url_env)) {
-    $server_url = rtrim($public_url_env, '/');
-} else {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
-    $base_dir = dirname($_SERVER['PHP_SELF']);
-    if ($base_dir === '\\' || $base_dir === '/') $base_dir = '';
-    $server_url = $protocol . "://" . $_SERVER['HTTP_HOST'] . $base_dir;
-}
+$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+$base_dir = dirname($_SERVER['PHP_SELF']);
+if ($base_dir === '\\' || $base_dir === '/') $base_dir = '';
+$server_url = $protocol . "://" . $_SERVER['HTTP_HOST'] . $base_dir;
 
 $message = '';
 if (isset($_GET['success'])) {
@@ -135,6 +127,7 @@ if (isset($_POST['add_source'])) {
 
     $stmt = $pdo->prepare("INSERT INTO fournisseurs (nom, type, url_base, user, pass, mac_address, proxy) VALUES (?, ?, ?, ?, ?, ?, ?)");
     if($stmt->execute([$nom, $type, $url_base, $user, $pass, $mac_address, $proxy])) {
+        // Après création, importer uniquement cette nouvelle source.
         $new_source_id = (int)$pdo->lastInsertId();
         header("Location: importer.php?fournisseur_id=" . $new_source_id);
         exit;
@@ -143,8 +136,25 @@ if (isset($_POST['add_source'])) {
 
 // --- MODIFICATION SOURCE ---
 if (isset($_POST['edit_source_btn'])) {
+    $source_id = (int)($_POST['source_id'] ?? 0);
+    $new_nom   = trim($_POST['edit_nom'] ?? '');
+
+    // Récupérer l'ancien nom du fournisseur avant la mise à jour
+    $stmtOld = $pdo->prepare("SELECT nom FROM fournisseurs WHERE id = ?");
+    $stmtOld->execute([$source_id]);
+    $old_nom = $stmtOld->fetchColumn();
+
     $stmt = $pdo->prepare("UPDATE fournisseurs SET nom = ?, url_base = ?, user = ?, pass = ?, mac_address = ?, proxy = ? WHERE id = ?");
-    if($stmt->execute([$_POST['edit_nom'], $_POST['edit_url'], $_POST['edit_user'], $_POST['edit_pass'], $_POST['edit_mac_address'] ?? null, $_POST['edit_proxy'] ?? null, $_POST['source_id']])) {
+    if($stmt->execute([$new_nom, $_POST['edit_url'], $_POST['edit_user'], $_POST['edit_pass'], $_POST['edit_mac_address'] ?? null, $_POST['edit_proxy'] ?? null, $source_id])) {
+        
+        // Si le nom du fournisseur a été modifié, mettre à jour directement les libellés des catégories existantes
+        if ($old_nom && $old_nom !== $new_nom) {
+            $oldTag = '[' . $old_nom . ']';
+            $newTag = '[' . $new_nom . ']';
+            $stmtCat = $pdo->prepare("UPDATE categories SET category_name = REPLACE(category_name, ?, ?) WHERE fournisseur_id = ?");
+            $stmtCat->execute([$oldTag, $newTag, $source_id]);
+        }
+
         header("Location: admin.php?success=updated"); exit;
     }
 }
@@ -155,6 +165,7 @@ if (isset($_POST['delete_source'])) {
     if ($id > 0) {
         try {
             $pdo->beginTransaction();
+            // Supprimer tout le contenu lié à ce fournisseur, y compris les catégories
             $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ?")->execute([$id]);
             $pdo->prepare("DELETE FROM categories WHERE fournisseur_id = ?")->execute([$id]);
             $pdo->prepare("DELETE FROM fournisseurs WHERE id = ?")->execute([$id]);
