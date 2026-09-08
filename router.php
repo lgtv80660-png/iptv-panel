@@ -14,7 +14,7 @@ $user_agent  = $_SERVER['HTTP_USER_AGENT'] ?? 'IPTV-Proxy';
 $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
 $public_domain = $scheme . "://" . $_SERVER['HTTP_HOST'];
 
-// 2. Extraire les identifiants utilisateur (GET ou URI)
+// 2. Extraire les identifiants utilisateur (GET ou URL)
 $username = $_GET['username'] ?? null;
 $password = $_GET['password'] ?? null;
 
@@ -22,14 +22,14 @@ $password = $_GET['password'] ?? null;
 if (!$username || !$password) {
     $uri_parts = explode('/', trim(parse_url($request_uri, PHP_URL_PATH), '/'));
     if (count($uri_parts) >= 3) {
-        $type = $uri_parts[0]; // live, movie, series
         $username = $uri_parts[1];
         $password = $uri_parts[2];
     }
 }
 
-// 3. Vérification des identifiants et récupération du serveur source en Base de Données
+// 3. Récupération DYNAMIQUE du serveur source depuis la BDD uniquement
 $stream_url = null;
+$source_server_base = null;
 
 if ($username && $password) {
     try {
@@ -37,20 +37,20 @@ if ($username && $password) {
         $stmt->execute(['username' => $username, 'password' => $password]);
         $line = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($line && isset($line['server_url'])) {
-            $server_base = rtrim($line['server_url'], '/');
-            $stream_url  = $server_base . $request_uri;
+        if ($line && !empty($line['server_url'])) {
+            $source_server_base = rtrim($line['server_url'], '/');
+            $stream_url = $source_server_base . $request_uri;
         }
     } catch (Exception $e) {
-        // Fallback si la BDD utilise une structure différente
+        // Log d'erreur BDD si nécessaire
     }
 }
 
-// Si la source n'a pas été trouvée en BDD, utiliser la source par défaut
-if (!$stream_url) {
-    // Remplacer par votre serveur/IP source par défaut si nécessaire
-    $default_source = "http://88.255.216.16:8080"; 
-    $stream_url = rtrim($default_source, '/') . $request_uri;
+// Si aucun serveur source n'est trouvé dans la BDD pour cet utilisateur, on stoppe net (pas de fallback en dur)
+if (!$stream_url || !$source_server_base) {
+    http_response_code(404);
+    echo "Error: Invalid credentials or missing source server configuration.";
+    exit();
 }
 
 // 4. TRAITEMENT PROXY AUTOMATIQUE POUR LES PLAYLISTS M3U (get.php)
@@ -68,23 +68,21 @@ if (strpos($request_uri, 'get.php') !== false || isset($_GET['type'])) {
     curl_close($ch);
 
     if ($http_code === 200 && $response !== false) {
-        // Extraction dynamique de l'IP/Domaine source pour la remplacer par le domaine Railway
-        $parsed_source = parse_url($stream_url);
-        if (isset($parsed_source['host'])) {
-            $source_host_port = $parsed_source['scheme'] . '://' . $parsed_source['host'] . (isset($parsed_source['port']) ? ':' . $parsed_source['port'] : '');
-            
-            // Remplacement automatique de toutes les occurrences de la source par votre domaine
-            $response = str_replace($source_host_port, $public_domain, $response);
-        }
+        // Remplacement dynamique : remplace l'URL source de la BDD par votre domaine public
+        $response = str_replace($source_server_base, $public_domain, $response);
 
-        // Renvoyer le fichier M3U directement sans redirection
+        // Renvoyer le fichier M3U directement au lecteur
         header('Content-Type: audio/x-mpegurl');
         header('Content-Disposition: attachment; filename="playlist.m3u"');
         echo $response;
         exit();
+    } else {
+        http_response_code(502);
+        echo "Error: Unable to fetch data from upstream source.";
+        exit();
     }
 }
 
-// 5. POUR LES FLUX STREAMING DIRECTS (Live / Vod / TS / MP4)
+// 5. POUR LES FLUX STREAMING DIRECTS
 header("Location: " . $stream_url);
 exit();
