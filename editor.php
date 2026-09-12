@@ -4,7 +4,6 @@ require 'db_migrations.php';
 ensure_panel_schema($pdo);
 
 // --- RÉCUPÉRATION D'UN COMPTE CLIENT POUR LE LECTEUR VIDÉO ---
-// On récupère dynamiquement le premier client actif dans la base de données
 $stmt_client = $pdo->query("SELECT username, password FROM clients WHERE active = 1 LIMIT 1");
 $preview_client = $stmt_client->fetch(PDO::FETCH_ASSOC);
 $preview_user = $preview_client ? $preview_client['username'] : '';
@@ -49,6 +48,12 @@ if (isset($_POST['ajax_action'])) {
 $message = '';
 
 // --- ACTIONS CLASSIQUES (Modif / Suppr) ---
+if (isset($_POST['update_category'])) {
+    $stmt = $pdo->prepare("UPDATE categories SET category_name = ? WHERE category_id = ?");
+    if($stmt->execute([$_POST['new_category_name'], $_POST['category_id']])) {
+        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Catégorie mise à jour.</div>';
+    }
+}
 if (isset($_POST['update_stream'])) {
     $stmt = $pdo->prepare("UPDATE streams SET stream_name = ?, category_id = ? WHERE stream_id = ?");
     if($stmt->execute([$_POST['new_name'], $_POST['new_category'], $_POST['stream_id']])) {
@@ -239,6 +244,9 @@ if ($mode === 'streams') {
                                 <td><span class="badge bg-secondary"><?= strtoupper($c['main_type'] ?? 'VIDE') ?></span></td>
                                 <td><?= $c['total_items'] ?> liens</td>
                                 <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-info me-2" onclick="editCategory('<?= $c['category_id'] ?>', '<?= addslashes(htmlspecialchars($c['category_name'])) ?>')">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
                                     <button type="button" class="btn btn-sm <?= $c['visible'] ? 'btn-outline-warning' : 'btn-outline-success' ?> toggle-btn me-2" onclick="toggleSingle('<?= $c['category_id'] ?>', 'cat', this)">
                                         <i class="fas <?= $c['visible'] ? 'fa-eye-slash' : 'fa-eye' ?>"></i> 
                                         <span class="btn-text"><?= $c['visible'] ? 'Masquer' : 'Afficher' ?></span>
@@ -302,6 +310,31 @@ if ($mode === 'streams') {
             </div>
         </div>
     </main>
+
+    <!-- Modal Modification Catégorie -->
+    <div class="modal fade" id="editCategoryModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background-color: var(--panel-bg); color: #fff; border: 1px solid var(--border-color);">
+          <div class="modal-header" style="border-bottom: 1px solid var(--border-color);">
+            <h5 class="modal-title">Renommer le bouquet</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <form method="POST">
+              <div class="modal-body">
+                <input type="hidden" name="category_id" id="edit_cat_id">
+                <div class="mb-3">
+                    <label class="form-label text-muted">Nouveau nom de la catégorie</label>
+                    <input type="text" name="new_category_name" id="edit_cat_name" class="form-control bg-dark text-white border-secondary" required>
+                </div>
+              </div>
+              <div class="modal-footer" style="border-top: 1px solid var(--border-color);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="submit" name="update_category" class="btn btn-primary" style="background: var(--accent); border: none;">Enregistrer</button>
+              </div>
+          </form>
+        </div>
+      </div>
+    </div>
 
     <?php if ($mode === 'streams'): ?>
     <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
@@ -371,10 +404,16 @@ if ($mode === 'streams') {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const currentMode = '<?= $mode ?>';
-        // Utilisation des identifiants dynamiques récupérés depuis la base de données
         const previewUser = encodeURIComponent('<?= addslashes($preview_user) ?>');
         const previewPass = encodeURIComponent('<?= addslashes($preview_pass) ?>');
         let hlsPlayer = null;
+
+        function editCategory(id, name) {
+            document.getElementById('edit_cat_id').value = id;
+            document.getElementById('edit_cat_name').value = name;
+            var editCatModal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+            editCatModal.show();
+        }
 
         function filterTable() {
             let textInput = document.getElementById("searchInput").value.toLowerCase();
@@ -499,8 +538,6 @@ if ($mode === 'streams') {
             const modal = new bootstrap.Modal(document.getElementById('previewModal'));
             modal.show();
 
-            // HLS.js is only for HLS. MP4/MKV episodes and movies must use the
-            // browser's native media element; HLS.js cannot play a normal MP4 URL.
             if (type === 'live') {
                 if (window.Hls && Hls.isSupported()) {
                     hlsPlayer = new Hls({ debug: false });
