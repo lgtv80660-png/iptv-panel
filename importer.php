@@ -1,5 +1,5 @@
 <?php
-// V16 - Importation AJAX + Détection des filtres (Catégories Visibles uniquement)
+// V16 - Importation AJAX + Détection des filtres + Noms personnalisés
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -207,12 +207,15 @@ $js_token = ''; $js_path = '/c/';
 // ÉTAPE 2 : AFFICHAGE & AJAX COUNTING
 // ==========================================
 if ($step === 2) {
-    // 1. Récupérer UNIQUEMENT les catégories Visibles (Filtre Éditeur) depuis la BDD locale
-    $stmtExisting = $pdo->prepare("SELECT remote_category_id, content_type FROM categories WHERE fournisseur_id = ? AND visible = 1");
+    // 1. Récupérer les catégories existantes avec leur nom personnalisé
+    $stmtExisting = $pdo->prepare("SELECT remote_category_id, category_name, content_type FROM categories WHERE fournisseur_id = ? AND visible = 1");
     $stmtExisting->execute([$fid]);
     $alreadyImported = ['live'=>[], 'movie'=>[], 'series'=>[]];
+    $customNames = ['live'=>[], 'movie'=>[], 'series'=>[]];
+
     foreach ($stmtExisting->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $alreadyImported[$row['content_type']][] = (string)$row['remote_category_id'];
+        $customNames[$row['content_type']][(string)$row['remote_category_id']] = $row['category_name'];
     }
 
     if ($type === 'xtream') {
@@ -322,11 +325,22 @@ body{background:#0f1219;color:#eef6ff;}
                     
                     $isAlreadyImported = in_array($rid, $alreadyImported[$kind]);
                     $checkedState = $isAlreadyImported ? 'checked' : '';
+                    $myCustomName = $customNames[$kind][$rid] ?? null;
                 ?>
                 <label class="cat-item <?= ($isStalker) ? 'disabled-item ajax-cat' : (($count == 0 && !$isAlreadyImported) ? 'disabled-item' : '') ?>" 
                        data-kind="<?= $kind ?>" data-id="<?= h($rid) ?>">
                     <input type="checkbox" name="selected_cats[<?= $kind ?>][]" value="<?= h($rid) ?>" <?= ($isStalker || ($count == 0 && !$isAlreadyImported)) ? 'disabled' : '' ?> <?= $checkedState ?>>
-                    <span style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="<?= h($name) ?>"><?= h($name) ?></span>
+                    
+                    <div style="font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-grow:1;">
+                        <div style="font-weight:bold; color:#fff;" title="Nom Fournisseur: <?= h($name) ?>">
+                            <?= h($name) ?>
+                        </div>
+                        <?php if ($myCustomName): ?>
+                            <small style="color:#00d2ff; font-size:11px;">
+                                <i class="fas fa-pen"></i> Ton nom : <?= h($myCustomName) ?>
+                            </small>
+                        <?php endif; ?>
+                    </div>
                     
                     <?php if ($isAlreadyImported && !$isStalker): ?>
                          <span class="badge-count badge-imported" title="Actif dans l'éditeur"><i class="fas fa-check"></i> <?= $count ?></span>
@@ -466,6 +480,12 @@ if ($step === 3):
         
         try {
             $pdo->beginTransaction();
+
+            // Récupérer les noms personnalisés existants avant suppression pour les préserver
+            $stmtCustom = $pdo->prepare("SELECT remote_category_id, category_name FROM categories WHERE fournisseur_id = ? AND content_type = ?");
+            $stmtCustom->execute([$fid, $kind]);
+            $existingCustomNames = $stmtCustom->fetchAll(PDO::FETCH_KEY_PAIR);
+
             if ($kind === 'series') $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ? AND stream_type = 'episode'")->execute([$fid]);
             $pdo->prepare("DELETE FROM streams WHERE fournisseur_id = ? AND stream_type = ?")->execute([$fid, $kind]);
             $pdo->prepare("DELETE FROM categories WHERE fournisseur_id = ? AND content_type = ?")->execute([$fid, $kind]);
@@ -475,8 +495,10 @@ if ($step === 3):
                 $rid = trim((string)($c['category_id'] ?? $c['id'] ?? ''));
                 $name = trim((string)($c['category_name'] ?? $c['title'] ?? $c['name'] ?? 'Général'));
                 if ($rid === '') $rid = $name;
+
                 if (in_array($rid, $selectedCats[$kind])) {
-                    $display = mb_substr('['.$nom.'] '.$name, 0, 250, 'UTF-8');
+                    // Conserver le nom personnalisé s'il a été édité, sinon utiliser le nom du fournisseur
+                    $display = isset($existingCustomNames[$rid]) ? $existingCustomNames[$rid] : mb_substr('['.$nom.'] '.$name, 0, 250, 'UTF-8');
                     $insertCat->execute([$display, $fid, $rid, $kind]);
                     $catMap[$rid] = (int)$pdo->lastInsertId();
                 }
