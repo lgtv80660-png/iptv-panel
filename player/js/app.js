@@ -1,11 +1,10 @@
-/* RGBTv — Controller Principal (v1.2) */
+/* RGBTv — Controller Principal (v1.3 - Restauration du Lecteur Video) */
 var App = (function () {
   var screen = 'splash', section = 'home', account = null, provider = null;
-  var live = { cats: [], catId: null, list: [], selected: null, previewTimer: null, epgTimer: null, previewVideo: null, previewHls: null };
+  var live = { cats: [], catId: null, list: [], selected: null };
   var movies = { cats: [], catId: null, list: [] }, series = { cats: [], catId: null, list: [] };
   var details = { base: null, info: null, season: null, list: null };
-  var editingId = null, addType = 'xtream', addAvatar = 'red', playerReturn = null, manageMode = false;
-  var pin = { buf: '', acc: null, resolve: null };
+  var manageMode = false;
 
   function showScreen(name) {
     screen = name;
@@ -14,8 +13,9 @@ var App = (function () {
   }
   function activeScreen() { return U.$('#screen-' + screen); }
   function isScreen(n) { return screen === n; }
+
   var NAV_ORDER = ['home', 'favorites', 'live', 'movies', 'series', 'search', 'weather', 'adhan', 'settings'];
-  
+
   function showSection(name) {
     var fromLeft = NAV_ORDER.indexOf(name) < NAV_ORDER.indexOf(section); section = name;
     U.$$('.nav-item').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-section') === name); });
@@ -31,19 +31,27 @@ var App = (function () {
   }
 
   function applyTheme() {
-    var s = Store.settings(); document.body.setAttribute('data-theme', s.theme || 'aurora');
+    var s = Store.settings(); 
+    document.body.setAttribute('data-theme', s.theme || 'aurora');
   }
 
   function init() {
-    applyTheme(); Player.init();
+    applyTheme(); 
+    Player.init();
+    Player.setOnEnded(onPlaybackEnded);
+    bindEvents();
+    
     var last = Store.lastAccount();
     setTimeout(function () { 
-      if (last && Store.getAccount(last)) openAccount(last).catch(function() { showAccounts(); }); 
-      else showAccounts(); 
+      if (last && Store.getAccount(last)) {
+        openAccount(last).catch(function() { showAccounts(); });
+      } else {
+        showAccounts(); 
+      }
     }, 500);
   }
 
-  /* Formulaire style Netflix avec Déblocage d'Erreur */
+  /* ---------- PROFILES & LOGIN G-PANEL ---------- */
   function showAccounts(keepManage) {
     if (provider && provider.destroy) provider.destroy();
     provider = null; account = null; App.account = null; App.provider = null;
@@ -70,7 +78,7 @@ var App = (function () {
             .netflix-btn-submit {
               width: 100%; padding: 14px; border-radius: 4px; border: none;
               background: #e50914; color: #fff; font-size: 16px; font-weight: bold;
-              cursor: pointer; margin-top: 15px;
+              cursor: pointer; margin-top: 15px; transition: background 0.2s;
             }
             .netflix-btn-submit:disabled { background: #555; cursor: not-allowed; }
             .netflix-error-msg { color: #e50914; font-size: 14px; margin-top: 12px; display: none; line-height: 1.4; }
@@ -100,7 +108,7 @@ var App = (function () {
           if (!u || !p) return;
 
           btn.disabled = true;
-          btn.textContent = 'Connecting...';
+          btn.textContent = 'Connexion...';
           if (errDiv) errDiv.style.display = 'none';
 
           var profile = {
@@ -130,7 +138,8 @@ var App = (function () {
       return;
     }
 
-    UI.renderAccounts(list, manageMode); showScreen('accounts');
+    UI.renderAccounts(list, manageMode); 
+    showScreen('accounts');
   }
 
   function openAccount(id, skipPin) {
@@ -147,22 +156,149 @@ var App = (function () {
       Store.setLastAccount(acc.id);
       account = acc; provider = p; App.account = acc; App.provider = p;
       
+      U.$('#chip-name').textContent = acc.name;
       showScreen('home'); 
       showSection('home');
       return true;
     }).catch(function (e) {
       showAccounts();
-      throw e; // Intercepté par la promesse du submit pour débloquer le bouton
+      throw e;
     });
   }
 
-  function renderHome() { }
-  function loadLive() { }
-  function loadMovies() { }
-  function loadSeries() { }
+  /* ---------- NAVIGATION CONTENT ---------- */
+  function renderHome() {
+    var rows = U.$('#home-rows'); 
+    rows.innerHTML = '';
+    UI.skeletonRows(rows, 2);
+
+    Promise.all([
+      provider.vodStreams().catch(function() { return []; }),
+      provider.liveStreams().catch(function() { return []; })
+    ]).then(function(res) {
+      rows.innerHTML = '';
+      var vods = res[0] || [];
+      var lives = res[1] || [];
+
+      if (lives.length) rows.appendChild(UI.row('Chaînes TV Direct', lives.slice(0, 15)));
+      if (vods.length) rows.appendChild(UI.row('Derniers Films', vods.slice(0, 15)));
+    });
+  }
+
+  function loadLive() {
+    var catBox = U.$('#live-cats'), chBox = U.$('#live-channels');
+    UI.skeletonList(catBox, 6); UI.skeletonList(chBox, 8);
+
+    provider.liveCategories().then(function(cats) {
+      UI.renderCats(catBox, [{id: null, name: 'Toutes les chaînes'}].concat(cats), null, 'lcat', function(c) {
+        provider.liveStreams(c.id).then(function(list) {
+          live.list = list;
+          UI.renderChannels(chBox, list, null, function() {}, function(ch, i) { playLive(ch, i); });
+        });
+      });
+      return provider.liveStreams();
+    }).then(function(list) {
+      live.list = list;
+      UI.renderChannels(chBox, list, null, function() {}, function(ch, i) { playLive(ch, i); });
+    });
+  }
+
+  function loadMovies() {
+    var grid = U.$('#movies-grid'); UI.skeletonGrid(grid);
+    provider.vodStreams().then(function(list) {
+      movies.list = list;
+      UI.renderGrid(grid, list, 'mgrid', function(it) { openItem(it); });
+    });
+  }
+
+  function loadSeries() {
+    var grid = U.$('#series-grid'); UI.skeletonGrid(grid);
+    provider.seriesList().then(function(list) {
+      series.list = list;
+      UI.renderGrid(grid, list, 'sgrid', function(it) { openItem(it); });
+    });
+  }
+
   function renderFavorites() { }
   function renderSettings() { }
 
+  /* ---------- GESTION DE LA LECTURE VIDEO (PLAYER) ---------- */
+  function openItem(it, list) {
+    if (!it) return;
+    if (it.type === 'live') {
+      playLive(it, 0);
+      return;
+    }
+    if (it.type === 'movie' || it.type === 'vod') {
+      playMovie(it);
+      return;
+    }
+    if (it.type === 'series') {
+      showScreen('details');
+      UI.renderDetails(it, it);
+      provider.seriesInfo(it.id).then(function(info) {
+        details.base = it;
+        details.info = info;
+        UI.renderDetails(info, it);
+        if (info.seasons && info.seasons.length) {
+          UI.renderSeasons(info.seasons, info.seasons[0].num, function(s) {
+            UI.renderEpisodes(s.episodes, function(ep) { playEpisode(ep, s.episodes); });
+          });
+          UI.renderEpisodes(info.seasons[0].episodes, function(ep) { playEpisode(ep, info.seasons[0].episodes); });
+        }
+      });
+    }
+  }
+
+  function playLive(ch, index) {
+    Player.reset();
+    showScreen('player');
+    var playable = UI.toPlayable(ch);
+    Player.play(playable, { list: live.list, index: index || 0 });
+  }
+
+  function playMovie(it) {
+    Player.reset();
+    showScreen('player');
+    var playable = UI.toPlayable(it);
+    Player.play(playable, { list: [playable], index: 0 });
+  }
+
+  function playEpisode(ep, list) {
+    Player.reset();
+    showScreen('player');
+    var playable = UI.toPlayable(ep);
+    playable.name = (details.base ? details.base.name : '') + ' - S' + ep.season + 'E' + ep.episode;
+    Player.play(playable, { list: list || [playable], index: 0 });
+  }
+
+  function onPlaybackEnded() {
+    closePlayer();
+  }
+
+  function closePlayer() {
+    Player.stop();
+    Player.reset();
+    showScreen('home');
+  }
+
+  function bindEvents() {
+    document.addEventListener('click', function (ev) {
+      var t = ev.target;
+      while (t && t !== document && !(t.getAttribute && (t.getAttribute('data-action') || t.getAttribute('data-section')))) {
+        t = t.parentNode;
+      }
+      if (!t || t === document) return;
+      
+      var a = t.getAttribute('data-action');
+      var sec = t.getAttribute('data-section');
+
+      if (sec) showSection(sec);
+      if (a === 'details-play' && details.base) playMovie(details.base);
+      if (a === 'details-back' || a === 'p-back') closePlayer();
+    });
+  }
+
   window.addEventListener('load', init);
-  return { openAccount: openAccount, showAccounts: showAccounts };
+  return { openAccount: openAccount, showAccounts: showAccounts, openItem: openItem, closePlayer: closePlayer };
 })();
