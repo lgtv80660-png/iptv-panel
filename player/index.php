@@ -1,5 +1,5 @@
 <?php
-// player/index.php - G-PANEL RGBTv Player (Internal Proxy + Auto-Inject Profile)
+// player/index.php - G-PANEL RGBTv Player avec Login Style Netflix
 ini_set('display_errors', 0);
 
 // Proxy PHP ultra-léger pour les flux vidéo (résolution HTTP/HTTPS & bypass CORS)
@@ -24,16 +24,99 @@ if (isset($_GET['proxy_url'])) {
         exit;
     }
 }
+
+// URL de votre serveur Xtream / Proxy par défaut
+$default_server_url = "https://gmztv.vercel.app";
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>G-PANEL - RGBTv Player</title>
+<title>G-PANEL TV - Sign In</title>
 <link rel="stylesheet" href="css/style.css">
+<style>
+  /* Style spécifique pour la fenêtre de connexion type Netflix */
+  .netflix-login-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.85)), url('img/bg.png') center/cover no-repeat;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .netflix-login-box {
+    background: rgba(0, 0, 0, 0.85);
+    padding: 50px 40px;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .netflix-login-box h2 {
+    color: #fff;
+    font-size: 28px;
+    margin-bottom: 25px;
+    font-weight: 700;
+  }
+  .netflix-input-group {
+    margin-bottom: 20px;
+  }
+  .netflix-input-group input {
+    width: 100%;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    background: #161616;
+    color: #fff;
+    font-size: 16px;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .netflix-input-group input:focus {
+    border-color: #e50914;
+    background: #222;
+  }
+  .netflix-btn-submit {
+    width: 100%;
+    padding: 16px;
+    border-radius: 6px;
+    border: none;
+    background: #e50914;
+    color: #fff;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: background 0.2s;
+  }
+  .netflix-btn-submit:hover {
+    background: #f40612;
+  }
+</style>
 </head>
 <body data-theme="dark">
+
+<!-- FENÊTRE DE CONNEXION STYLE NETFLIX (Affichée si aucun profil connecté) -->
+<div id="netflix-login-screen" class="netflix-login-overlay" style="display: none;">
+  <div class="netflix-login-box">
+    <div class="brand sm" style="margin-bottom: 20px;">RGB<span>Tv</span></div>
+    <h2>Sign In</h2>
+    <form id="netflix-form" autocomplete="off">
+      <div class="netflix-input-group">
+        <input type="text" id="net_user" placeholder="Username" required autofocus>
+      </div>
+      <div class="netflix-input-group">
+        <input type="password" id="net_pass" placeholder="Password" required>
+      </div>
+      <button type="submit" class="netflix-btn-submit">Sign In</button>
+    </form>
+  </div>
+</div>
+
 <div id="app">
 
 <!-- ================= SPLASH ================= -->
@@ -425,35 +508,53 @@ if (isset($_GET['proxy_url'])) {
 <script src="js/touch.js"></script>
 <script src="js/app.js"></script>
 
-<!-- AUTO-INJECT DEFAULT PROFILE SCRIPT -->
+<!-- SCRIPT DE GESTION DU LOGIN TYPE NETFLIX -->
 <script>
-  (function autoConnectDefaultProfile() {
+  (function initNetflixLogin() {
     const STORAGE_KEY = 'rgbtv_accounts';
+    const DEFAULT_SERVER = "<?php echo $default_server_url; ?>";
     let accounts = [];
+    
     try {
       accounts = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
     } catch (e) {
       accounts = [];
     }
 
+    const loginScreen = document.getElementById('netflix-login-screen');
+    const loginForm = document.getElementById('netflix-form');
+
+    // Si aucun compte n'est enregistré, afficher la fenêtre Netflix
     if (accounts.length === 0) {
-      const defaultProfile = {
-        id: 'gpanel_default_' + Date.now(),
-        name: 'G-PANEL TV',
+      loginScreen.style.display = 'flex';
+    }
+
+    loginForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const u = document.getElementById('net_user').value.trim();
+      const p = document.getElementById('net_pass').value.trim();
+
+      if (!u || !p) return;
+
+      const profile = {
+        id: 'xtream_' + Date.now(),
+        name: u,
         type: 'xtream',
-        url: 'https://gmztv.vercel.app',
-        username: 'akli',
-        password: 'akli',
+        url: DEFAULT_SERVER,
+        username: u,
+        password: p,
         avatar: 'img/largeIcon.png',
         kid: false,
         created: Date.now()
       };
 
-      accounts.push(defaultProfile);
+      accounts.push(profile);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-      localStorage.setItem('rgbtv_active_account', defaultProfile.id);
+      localStorage.setItem('rgbtv_active_account', profile.id);
+
+      loginScreen.style.display = 'none';
       window.location.reload();
-    }
+    });
   })();
 </script>
 </body>
