@@ -37,7 +37,15 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
             background: linear-gradient(180deg, rgba(11, 14, 20, 0.95) 0%, rgba(11, 14, 20, 0) 100%);
             z-index: 1000;
         }
-        .logo-container img { height: 44px; width: auto; object-fit: contain; }
+        
+        /* LOGO FIXÉ À 100PX DE LARGEUR */
+        .logo-container img { 
+            width: 100px; 
+            height: auto; 
+            display: block; 
+            object-fit: contain; 
+        }
+
         .btn-admin {
             background: linear-gradient(135deg, #0052d4 0%, #4364f7 50%, #6fb1fc 100%);
             color: #ffffff; padding: 10px 24px; text-decoration: none; font-weight: 700;
@@ -46,8 +54,16 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
         }
         .btn-admin:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(67, 100, 247, 0.6); }
 
-        /* HERO BANNER CONTAINER */
-        .hero-container { position: relative; height: 80vh; width: 100%; overflow: hidden; background: #000; }
+        /* HERO BANNER STICKY (RESTE FIXE EN HAUT) */
+        .hero-container { 
+            position: sticky; 
+            top: 0; 
+            height: 60vh; 
+            width: 100%; 
+            overflow: hidden; 
+            background: #000; 
+            z-index: 10;
+        }
         
         .hero-media {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -66,20 +82,26 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
         }
 
         .hero-content {
-            position: absolute; bottom: 15%; left: 40px; z-index: 10; max-width: 650px;
+            position: absolute; bottom: 10%; left: 40px; z-index: 10; max-width: 650px;
         }
         .hero-badge { display: inline-block; background: #4364f7; color: #fff; font-size: 0.8rem; font-weight: 800; padding: 4px 10px; border-radius: 4px; margin-bottom: 12px; }
-        .hero-title { font-size: 3.2rem; font-weight: 800; margin-bottom: 12px; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
-        .hero-desc { font-size: 1.05rem; color: #d1d5db; margin-bottom: 22px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .hero-title { font-size: 2.8rem; font-weight: 800; margin-bottom: 12px; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+        .hero-desc { font-size: 1rem; color: #d1d5db; margin-bottom: 20px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         
         .btn-play {
-            background-color: #ffffff; color: #0b0e14; padding: 12px 28px; border-radius: 6px;
-            font-weight: 800; font-size: 1.05rem; text-decoration: none; display: inline-flex; align-items: center; gap: 10px; transition: all 0.2s ease;
+            background-color: #ffffff; color: #0b0e14; padding: 10px 24px; border-radius: 6px;
+            font-weight: 800; font-size: 1rem; text-decoration: none; display: inline-flex; align-items: center; gap: 10px; transition: all 0.2s ease;
         }
         .btn-play:hover { opacity: 0.9; transform: scale(1.02); }
 
-        /* SECTIONS & GRIDS */
-        .content-section { padding: 0 40px; margin-top: -50px; position: relative; z-index: 20; }
+        /* SECTIONS & GRIDS CONTENU */
+        .content-section { 
+            position: relative; 
+            z-index: 20; 
+            background: #0b0e14; 
+            padding: 30px 40px 0 40px; 
+            box-shadow: 0 -20px 30px rgba(11, 14, 20, 0.9);
+        }
         .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 18px; color: #f3f4f6; }
         .movies-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 18px; margin-bottom: 45px; }
         
@@ -100,7 +122,7 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
         <a href="/admin.php" class="btn-admin">Espace Admin</a>
     </header>
 
-    <!-- HERO BANNER -->
+    <!-- HERO BANNER STICKY -->
     <div class="hero-container" id="heroContainer">
         <div class="hero-media" id="heroMedia">
             <?php 
@@ -169,7 +191,6 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
         let currentIndex = 0;
         let autoSliderInterval = null;
 
-        // Met à jour l'affichage du Hero avec une image
         function updateHeroDisplay(type, item) {
             document.getElementById('heroBadge').innerText = type === 'movie' ? 'FILM' : 'SÉRIE';
             document.getElementById('heroTitle').innerText = item.title || item.name;
@@ -181,7 +202,6 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
             }
         }
 
-        // 1. GESTION DU SLIDER AUTOMATIQUE (5 secondes)
         function startAutoSlider() {
             stopAutoSlider();
             autoSliderInterval = setInterval(() => {
@@ -196,16 +216,13 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
             if (autoSliderInterval) clearInterval(autoSliderInterval);
         }
 
-        // 2. AU SURVOL (Mouse Enter) : Affiche l'image du film survolé et réinitialise le chrono
         function onHoverCard(type, item) {
-            startAutoSlider(); // Relance la minuterie de 5s à partir de maintenant
+            startAutoSlider();
             updateHeroDisplay(type, item);
         }
 
-        // 3. AU CLIC : Stoppe le slider auto, remonte la page et lance la bande-annonce vidéo
         async function playTrailerInHero(type, id) {
-            stopAutoSlider(); // Stoppe le défilement pendant la vidéo
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            stopAutoSlider();
 
             const res = await fetch(`https://api.themoviedb.org/3/${type}/${id}?api_key=${API_KEY}&language=fr-FR&append_to_response=videos`);
             const data = await res.json();
@@ -226,7 +243,6 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
             }
         }
 
-        // Démarrage initial du slider
         startAutoSlider();
     </script>
 </body>
