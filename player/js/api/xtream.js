@@ -106,10 +106,22 @@ XtreamProvider.prototype = {
       url = fmt === 'm3u8' ? this.base + '/live/' + this.user + '/' + this.pass + '/' + item.id + '.m3u8' : this.base + '/live/' + this.user + '/' + this.pass + '/' + item.id + '.ts';
     } else if (item.type === 'movie') url = this.base + '/movie/' + this.user + '/' + this.pass + '/' + item.id + '.' + (item.ext || 'mp4');
     else url = this.base + '/series/' + this.user + '/' + this.pass + '/' + item.id + '.' + (item.ext || 'mp4');
+    
+    // Forcer le protocole HTTPS si l'application est exécutée sur HTTPS (ex: Vercel)
+    if (window.location && window.location.protocol === 'https:') {
+      url = url.replace(/^http:/i, 'https:');
+    }
+
     return Promise.resolve(url);
   },
   catchupUrl: function (item, startTs, durationMin) {
     var d = new Date(startTs * 1000), s = d.getFullYear() + '-' + U.pad(d.getMonth() + 1) + '-' + U.pad(d.getDate()) + ':' + U.pad(d.getHours()) + '-' + U.pad(d.getMinutes());
-    return this.base + '/streaming/timeshift.php?' + U.qs({ username: this.user, password: this.pass, stream: item.id, start: s, duration: durationMin });
+    var url = this.base + '/streaming/timeshift.php?' + U.qs({ username: this.user, password: this.pass, stream: item.id, start: s, duration: durationMin });
+    
+    if (window.location && window.location.protocol === 'https:') {
+      url = url.replace(/^http:/i, 'https:');
+    }
+
+    return url;
   }
 };
