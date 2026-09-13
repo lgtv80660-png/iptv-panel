@@ -1,4 +1,4 @@
-/* RGBTv — Controller Principal (v2.2) */
+/* RGBTv — Controller Principal (v2.3 - Fix Clics & Fiches Films) */
 var App = (function () {
   var DIRECT_CONFIG = {
     url: window.location.origin,
@@ -14,9 +14,10 @@ var App = (function () {
   function showScreen(name) {
     screen = name;
     U.$$('.screen').forEach(function (s) { s.classList.toggle('active', s.id === 'screen-' + name); });
-    Nav.setContainer(activeScreen());
+    if (window.Nav && Nav.setContainer) Nav.setContainer(activeScreen());
   }
   function activeScreen() { return U.$('#screen-' + screen); }
+  function isScreen(n) { return screen === n; }
 
   var NAV_ORDER = ['home', 'favorites', 'live', 'movies', 'series', 'search', 'weather', 'adhan', 'settings'];
 
@@ -33,34 +34,28 @@ var App = (function () {
       case 'movies': loadMovies(); break; 
       case 'series': loadSeries(); break;
       case 'favorites': renderFavorites(); break; 
-      case 'search': Nav.focus(U.$('#osk .osk-key')); break;
-      case 'weather': if (window.Weather && Weather.open) Weather.open(); break;
-      case 'adhan': if (window.Adhan && Adhan.open) Adhan.open(); break;
       case 'settings': renderSettings(); break; 
     }
   }
 
   function applyTheme() {
-    var s = Store.settings(); 
+    var s = Store.settings ? Store.settings() : {}; 
     document.body.setAttribute('data-theme', s.theme || 'aurora');
     document.body.setAttribute('data-corners', s.corners || 'round');
   }
 
   function init() {
     applyTheme(); 
-    Player.init();
-    if (Player.setOnEnded) Player.setOnEnded(onPlaybackEnded);
+    if (window.Player && Player.init) Player.init();
+    if (window.Player && Player.setOnEnded) Player.setOnEnded(onPlaybackEnded);
     
-    if (window.Weather && Weather.refresh) setTimeout(Weather.refresh, 1000);
-    if (window.Adhan && Adhan.start) Adhan.start();
-
     bindEvents();
     startDirectLogin();
   }
 
   function startDirectLogin() {
     showScreen('splash');
-    U.$('#splash-status').textContent = 'Connexion à G-PANEL...';
+    if (U.$('#splash-status')) U.$('#splash-status').textContent = 'Connexion à G-PANEL...';
 
     account = {
       id: 'xtream_direct',
@@ -78,6 +73,9 @@ var App = (function () {
 
     provider.login().then(function () {
       if (U.$('#chip-name')) U.$('#chip-name').textContent = account.name;
+      showScreen('home'); 
+      showSection('home');
+    }).catch(function() {
       showScreen('home'); 
       showSection('home');
     });
@@ -101,11 +99,7 @@ var App = (function () {
 
       if (lives.length) rows.appendChild(UI.row('Chaînes en Direct', lives.slice(0, 20)));
       if (vods.length) rows.appendChild(UI.row('Derniers Films', vods.slice(0, 20)));
-      if (seriesList.length) rows.appendChild(UI.row('Séries', seriesList.slice(0, 20)));
-      
-      if (!lives.length && !vods.length && !seriesList.length) {
-        rows.innerHTML = '<div class="empty">Aucun contenu retourné par le proxy.</div>';
-      }
+      if (seriesList.length) rows.appendChild(UI.row('Séries Populaires', seriesList.slice(0, 20)));
     });
   }
 
@@ -174,9 +168,9 @@ var App = (function () {
     var rows = U.$('#fav-rows');
     if (!rows) return;
     rows.innerHTML = '';
-    var f = Store.favorites('direct');
+    var f = Store.favorites ? Store.favorites('direct') : [];
     if (!f || !f.length) {
-      rows.innerHTML = '<div class="empty">Aucun favori.</div>';
+      rows.innerHTML = '<div class="empty">Aucun favori enregistré.</div>';
       return;
     }
     rows.appendChild(UI.row('Mes Favoris', f));
@@ -187,15 +181,40 @@ var App = (function () {
     if (info) info.textContent = DIRECT_CONFIG.name + ' (' + DIRECT_CONFIG.username + ')';
   }
 
+  /* ---------- GESTION DES CLICS SUR FILMS & SÉRIES ---------- */
   function openItem(it) {
     if (!it) return;
-    if (it.type === 'live') { playLive(it, 0); return; }
-    if (it.type === 'movie' || it.type === 'vod') { playMovie(it); return; }
+    
+    // Direct TV -> Lancement direct
+    if (it.type === 'live') { 
+      playLive(it, 0); 
+      return; 
+    }
+    
+    // Film / VOD -> Ouverture fiche détaillée avec option Play
+    if (it.type === 'movie' || it.type === 'vod') { 
+      details.base = it;
+      showScreen('details');
+      UI.renderDetails(it, it);
+      
+      // Masquer la grille des épisodes/saisons pour les films
+      if (U.$('#details-seasons')) U.$('#details-seasons').innerHTML = '';
+      if (U.$('#details-episodes')) U.$('#details-episodes').innerHTML = '';
+      
+      // Récupération des informations complémentaires du film
+      provider.vodInfo(it.id, it).then(function(info) {
+        details.info = info;
+        UI.renderDetails(info, it);
+      });
+      return; 
+    }
+    
+    // Séries -> Ouverture fiche avec saisons/épisodes
     if (it.type === 'series') {
+      details.base = it;
       showScreen('details');
       UI.renderDetails(it, it);
       provider.seriesInfo(it.id).then(function(info) {
-        details.base = it;
         details.info = info;
         UI.renderDetails(info, it);
         if (info && info.seasons && info.seasons.length) {
@@ -209,6 +228,7 @@ var App = (function () {
   }
 
   function playLive(ch, index) {
+    if (!window.Player) return;
     Player.reset();
     showScreen('player');
     var playable = UI.toPlayable(ch);
@@ -216,6 +236,7 @@ var App = (function () {
   }
 
   function playMovie(it) {
+    if (!window.Player) return;
     Player.reset();
     showScreen('player');
     var playable = UI.toPlayable(it);
@@ -223,6 +244,7 @@ var App = (function () {
   }
 
   function playEpisode(ep, list) {
+    if (!window.Player) return;
     Player.reset();
     showScreen('player');
     var playable = UI.toPlayable(ep);
@@ -231,12 +253,22 @@ var App = (function () {
   }
 
   function onPlaybackEnded() { closePlayer(); }
-  function closePlayer() { Player.stop(); Player.reset(); showScreen('home'); }
+  
+  function closePlayer() { 
+    if (window.Player) {
+      Player.stop(); 
+      Player.reset(); 
+    }
+    showScreen('home'); 
+  }
 
+  /* GESTIONNAIRE ÉVÉNEMENTS GLOBAL (DELÉGATION DE CLIC) */
   function bindEvents() {
     document.addEventListener('click', function (ev) {
       var t = ev.target;
-      while (t && t !== document && !(t.getAttribute && (t.getAttribute('data-action') || t.getAttribute('data-section')))) {
+      
+      // Remonter l'arbre DOM pour trouver le bouton ou l'élément cliquable
+      while (t && t !== document && !(t.getAttribute && (t.getAttribute('data-action') || t.getAttribute('data-section') || t.classList.contains('card') || t.classList.contains('focusable')))) {
         t = t.parentNode;
       }
       if (!t || t === document) return;
@@ -244,12 +276,25 @@ var App = (function () {
       var a = t.getAttribute('data-action');
       var sec = t.getAttribute('data-section');
 
+      // 1. Navigation Onglets Haut
       if (sec) showSection(sec);
-      if (a === 'details-play' && details.base) playMovie(details.base);
-      if (a === 'details-back' || a === 'p-back') closePlayer();
+      
+      // 2. Boutons d'action Fiche / Player
+      if (a === 'details-play' || a === 'hero-play') {
+        if (details.base) playMovie(details.base);
+      }
+      if (a === 'details-back' || a === 'p-back') {
+        if (screen === 'player') closePlayer();
+        else if (screen === 'details') showScreen('home');
+      }
+
+      // 3. Clic sur une Carte de Film/Série attachée avec `_item`
+      if (t._item) {
+        openItem(t._item);
+      }
     });
   }
 
   window.addEventListener('load', init);
-  return { openItem: openItem, closePlayer: closePlayer };
+  return { openItem: openItem, closePlayer: closePlayer, isScreen: isScreen };
 })();
