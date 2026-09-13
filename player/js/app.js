@@ -1,4 +1,4 @@
-/* RGBTv — Controller Principal (v2.3 - Fix Clics & Fiches Films) */
+/* RGBTv — Controller Principal (v2.4 - Complete Fix) */
 var App = (function () {
   var DIRECT_CONFIG = {
     url: window.location.origin,
@@ -181,7 +181,6 @@ var App = (function () {
     if (info) info.textContent = DIRECT_CONFIG.name + ' (' + DIRECT_CONFIG.username + ')';
   }
 
-  /* ---------- GESTION DES CLICS SUR FILMS & SÉRIES ---------- */
   function openItem(it) {
     if (!it) return;
     
@@ -191,17 +190,15 @@ var App = (function () {
       return; 
     }
     
-    // Film / VOD -> Ouverture fiche détaillée avec option Play
+    // Films / VOD -> Ouverture fiche avec binding immédiat
     if (it.type === 'movie' || it.type === 'vod') { 
       details.base = it;
       showScreen('details');
       UI.renderDetails(it, it);
       
-      // Masquer la grille des épisodes/saisons pour les films
       if (U.$('#details-seasons')) U.$('#details-seasons').innerHTML = '';
       if (U.$('#details-episodes')) U.$('#details-episodes').innerHTML = '';
       
-      // Récupération des informations complémentaires du film
       provider.vodInfo(it.id, it).then(function(info) {
         details.info = info;
         UI.renderDetails(info, it);
@@ -209,7 +206,7 @@ var App = (function () {
       return; 
     }
     
-    // Séries -> Ouverture fiche avec saisons/épisodes
+    // Séries -> Fiche avec saisons
     if (it.type === 'series') {
       details.base = it;
       showScreen('details');
@@ -236,7 +233,7 @@ var App = (function () {
   }
 
   function playMovie(it) {
-    if (!window.Player) return;
+    if (!window.Player || !it) return;
     Player.reset();
     showScreen('player');
     var playable = UI.toPlayable(it);
@@ -262,35 +259,26 @@ var App = (function () {
     showScreen('home'); 
   }
 
-  /* GESTIONNAIRE ÉVÉNEMENTS GLOBAL (DELÉGATION DE CLIC) */
   function bindEvents() {
     document.addEventListener('click', function (ev) {
       var t = ev.target;
-      
-      // Remonter l'arbre DOM pour trouver le bouton ou l'élément cliquable
-      while (t && t !== document && !(t.getAttribute && (t.getAttribute('data-action') || t.getAttribute('data-section') || t.classList.contains('card') || t.classList.contains('focusable')))) {
+      while (t && t !== document && !(t.getAttribute && (t.getAttribute('data-action') || t.getAttribute('data-section') || t.id === 'details-play'))) {
         t = t.parentNode;
       }
       if (!t || t === document) return;
       
-      var a = t.getAttribute('data-action');
+      var a = t.getAttribute('data-action') || t.id;
       var sec = t.getAttribute('data-section');
 
-      // 1. Navigation Onglets Haut
       if (sec) showSection(sec);
       
-      // 2. Boutons d'action Fiche / Player
+      // Fix du clic sur le bouton "Play Movie" de la fiche
       if (a === 'details-play' || a === 'hero-play') {
         if (details.base) playMovie(details.base);
       }
       if (a === 'details-back' || a === 'p-back') {
         if (screen === 'player') closePlayer();
         else if (screen === 'details') showScreen('home');
-      }
-
-      // 3. Clic sur une Carte de Film/Série attachée avec `_item`
-      if (t._item) {
-        openItem(t._item);
       }
     });
   }
