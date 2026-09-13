@@ -36,7 +36,6 @@ var App = (function () {
   function hexRgba(hex, a) { var n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; }
   function applyTheme() {
     var s = Store.settings(); document.body.setAttribute('data-theme', s.theme || 'aurora');
-    // accent override: written as inline custom properties on <body> so it wins over the theme rules
     var st = document.body.style, hex = ACCENTS[s.accent];
     ['--accent', '--fglow', '--glowc', '--glow1'].forEach(function (v) { st.removeProperty(v); });
     if (hex) { st.setProperty('--accent', hex); st.setProperty('--fglow', hexRgba(hex, .6)); st.setProperty('--glowc', hexRgba(hex, .6)); st.setProperty('--glow1', hexRgba(hex, .34)); }
@@ -47,7 +46,7 @@ var App = (function () {
     var s = Store.settings();
     document.body.setAttribute('data-focus', s.focusStyle || 'glow'); document.body.classList.toggle('large', !!s.largeUi);
     U.$('#sec-home').setAttribute('data-layout', s.layout || 'classic');
-    document.body.classList.toggle('hubmode', isHub(s.layout)); // hub styles: no top menu on Home, breadcrumb "Home ›" elsewhere
+    document.body.classList.toggle('hubmode', isHub(s.layout));
     Nav.setPointerMode(s.pointer || 'click');
   }
   function tickClock() {
@@ -119,6 +118,8 @@ var App = (function () {
               cursor: pointer; margin-top: 15px; transition: background 0.2s;
             }
             .netflix-btn-submit:hover { background: #f40612; }
+            .netflix-btn-submit:disabled { background: #555; cursor: not-allowed; }
+            .netflix-error-msg { color: #e50914; font-size: 14px; margin-top: 12px; display: none; }
           </style>
           <div class="netflix-login-box">
             <div class="brand sm" style="margin-bottom: 25px; font-size: 30px; text-align: left;">RGB<span style="color:#e50914">Tv</span></div>
@@ -131,15 +132,22 @@ var App = (function () {
                 <input type="password" id="net_pass" placeholder="Password" required>
               </div>
               <button type="submit" class="netflix-btn-submit">Sign In</button>
+              <div id="net_err" class="netflix-error-msg"></div>
             </form>
           </div>
         `;
 
         document.getElementById('netflix-form').addEventListener('submit', function (e) {
           e.preventDefault();
+          var btn = this.querySelector('button[type="submit"]');
+          var errDiv = document.getElementById('net_err');
           var u = document.getElementById('net_user').value.trim();
           var p = document.getElementById('net_pass').value.trim();
           if (!u || !p) return;
+
+          btn.disabled = true;
+          btn.textContent = 'Connecting...';
+          if (errDiv) errDiv.style.display = 'none';
 
           var profile = {
             id: 'xtream_' + Date.now(),
@@ -154,7 +162,19 @@ var App = (function () {
           };
 
           Store.addAccount(profile);
-          openAccount(profile.id, true);
+
+          var pPromise = openAccount(profile.id, true);
+          if (pPromise && pPromise.catch) {
+            pPromise.catch(function (err) {
+              Store.removeAccount(profile.id);
+              btn.disabled = false;
+              btn.textContent = 'Sign In';
+              if (errDiv) {
+                errDiv.textContent = 'Connexion échouée : ' + (err.message || 'Vérifiez vos identifiants');
+                errDiv.style.display = 'block';
+              }
+            });
+          }
         });
       }
       return;
@@ -184,7 +204,7 @@ var App = (function () {
   function updatePinDots() { U.$$('#pin-dots i').forEach(function (d, i) { d.classList.toggle('on', i < pin.buf.length); }); }
   function pinKey(k) {
     if (k === '⌫') pin.buf = pin.buf.slice(0, -1);
-    else if (k === 'OK') { /* handled on 4 digits */ }
+    else if (k === 'OK') { }
     else if (pin.buf.length < 4) pin.buf += k;
     updatePinDots();
     if (pin.buf.length === 4) {
@@ -200,10 +220,10 @@ var App = (function () {
     return m;
   }
   function openAccount(id, skipPin) {
-    var acc = Store.getAccount(id); if (!acc) return;
-    if (manageMode) { accountMenu(id); return; }
-    (skipPin ? Promise.resolve(true) : requirePin(acc)).then(function (ok) {
-      if (!ok) return;
+    var acc = Store.getAccount(id); if (!acc) return Promise.reject(new Error('Account not found'));
+    if (manageMode) { accountMenu(id); return Promise.resolve(false); }
+    return (skipPin ? Promise.resolve(true) : requirePin(acc)).then(function (ok) {
+      if (!ok) return false;
       showScreen('splash'); U.$('#splash-status').textContent = 'Connecting to ' + acc.name + '…';
       var p = createProvider(acc);
       return p.login().then(function (info) {
@@ -215,12 +235,14 @@ var App = (function () {
         updateExpiry(info); updateNewBadges();
         showScreen('home'); showSection('home'); scheduleRefresh();
         if (info && info.expires && info.expires - Date.now() < 7 * 86400e3) UI.toast(T('toast.expires', { t: expiryText(info.expires).text }), 5000, '⚠');
+        return true;
       }).catch(function (e) {
         UI.renderAccounts(Store.accounts(), false); showScreen('accounts');
         UI.modal(T('conn.failed'), U.esc(acc.name) + ': ' + U.esc(connHint(e.message || 'Unknown error')), [{ label: T('edit'), value: 'edit' }, { label: T('retry'), value: 'retry', ghost: true }, { label: T('remove'), value: 'remove', danger: true }, { label: T('close'), value: null, ghost: true }]).then(function (v) {
           if (v === 'edit') { manageMode = false; showAddForm(Store.getAccount(acc.id) || acc); } else if (v === 'retry') openAccount(acc.id, true); else if (v === 'remove') { Store.removeAccount(acc.id); showAccounts(); }
           else Nav.focus(U.$('.profile[data-id="' + acc.id + '"]') || U.$('.profile'));
         });
+        throw e;
       });
     });
   }
@@ -268,7 +290,7 @@ var App = (function () {
     });
   }
 
-  /* ---------- Add from phone (QR pairing via the Luna service HTTP server) ---------- */
+  /* ---------- Add from phone (QR pairing) ---------- */
   var pair = { timer: null, on: false, from: null };
   function pairCall(method, params) {
     if (window.RGBTvDesktop && RGBTvDesktop.pair) return RGBTvDesktop.pair(method, params || {}).then(function (r) { if (r && r.returnValue === false) throw new Error(r.errorText || 'pair failed'); return r; });
@@ -902,7 +924,7 @@ var App = (function () {
     if (live.vl) { var idx = live.vl.items.indexOf(it); if (idx >= 0) live.vl.refreshItem(idx); }
   }
 
-  /* ---------- ambient screensaver (5 min idle outside the player) ---------- */
+  /* ---------- ambient screensaver ---------- */
   var amb = { last: Date.now(), on: false, timer: null, idx: 0, pool: [], flip: 0 };
   function noteActivity() { amb.last = Date.now(); if (amb.on) hideAmbient(); }
   function initAmbient() {
