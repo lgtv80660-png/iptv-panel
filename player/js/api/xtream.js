@@ -1,10 +1,9 @@
-/* Integration Xtream / G-PANEL Proxy — Correctif Catégories & Contenu */
+/* Integration Xtream / G-PANEL Proxy — Fix Génération des Links de Lecture */
 function XtreamProvider(account) {
   this.account = account;
   this.baseUrl = account.url ? account.url.replace(/\/+$/, '') : window.location.origin;
 }
 
-// Fonction utilitaire pour garantir qu'on manipule un tableau JS
 function toArray(data) {
   if (!data) return [];
   if (Array.isArray(data)) return data;
@@ -41,7 +40,15 @@ XtreamProvider.prototype.liveStreams = function (catId) {
   return U.getJSON(url).then(function (res) {
     var list = toArray(res);
     return list.map(function (x) {
-      return { id: x.stream_id || x.id, name: x.name, type: 'live', logo: x.stream_icon, catId: x.category_id, epgId: x.epg_channel_id };
+      return { 
+        id: x.stream_id || x.id, 
+        streamId: x.stream_id || x.id,
+        name: x.name, 
+        type: 'live', 
+        logo: x.stream_icon, 
+        catId: x.category_id, 
+        epgId: x.epg_channel_id 
+      };
     });
   });
 };
@@ -60,7 +67,16 @@ XtreamProvider.prototype.vodStreams = function (catId) {
   return U.getJSON(url).then(function (res) {
     var list = toArray(res);
     return list.map(function (x) {
-      return { id: x.stream_id || x.id, name: x.name, type: 'movie', poster: x.stream_icon, rating: x.rating, catId: x.category_id, ext: x.container_extension || 'mp4' };
+      return { 
+        id: x.stream_id || x.id, 
+        streamId: x.stream_id || x.id,
+        name: x.name, 
+        type: 'movie', 
+        poster: x.stream_icon, 
+        rating: x.rating, 
+        catId: x.category_id, 
+        ext: x.container_extension || 'mp4' 
+      };
     });
   });
 };
@@ -79,7 +95,16 @@ XtreamProvider.prototype.seriesList = function (catId) {
   return U.getJSON(url).then(function (res) {
     var list = toArray(res);
     return list.map(function (x) {
-      return { id: x.series_id || x.id, name: x.name, type: 'series', poster: x.cover || x.stream_icon, rating: x.rating, catId: x.category_id, plot: x.plot };
+      return { 
+        id: x.series_id || x.id, 
+        seriesId: x.series_id || x.id,
+        name: x.name, 
+        type: 'series', 
+        poster: x.cover || x.stream_icon, 
+        rating: x.rating, 
+        catId: x.category_id, 
+        plot: x.plot 
+      };
     });
   });
 };
@@ -88,13 +113,14 @@ XtreamProvider.prototype.vodInfo = function (id, item) {
   var url = this.baseUrl + '/player_api.php?username=' + encodeURIComponent(this.account.username) + '&password=' + encodeURIComponent(this.account.password) + '&action=get_vod_info&vod_id=' + id;
   return U.getJSON(url).then(function (d) {
     if (!d) return item;
+    var ext = (d.movie_data && d.movie_data.container_extension) ? d.movie_data.container_extension : (item ? item.ext : 'mp4');
     return {
       id: id,
-      name: (d.info && d.info.name) ? d.info.name : item.name,
+      name: (d.info && d.info.name) ? d.info.name : (item ? item.name : ''),
       plot: (d.info && d.info.plot) ? d.info.plot : '',
-      poster: (d.info && d.info.movie_image) ? d.info.movie_image : item.poster,
+      poster: (d.info && d.info.movie_image) ? d.info.movie_image : (item ? item.poster : ''),
       backdrop: (d.info && d.info.backdrop_path && d.info.backdrop_path.length) ? d.info.backdrop_path[0] : null,
-      ext: (d.movie_data && d.movie_data.container_extension) ? d.movie_data.container_extension : (item.ext || 'mp4')
+      ext: ext || 'mp4'
     };
   }).catch(function() { return item; });
 };
@@ -108,7 +134,15 @@ XtreamProvider.prototype.seriesInfo = function (id) {
         seasonsMap[sNum] = {
           num: Number(sNum),
           episodes: toArray(d.episodes[sNum]).map(function (e) {
-            return { id: e.id, name: e.title, season: Number(sNum), episode: Number(e.episode), ext: e.container_extension || 'mp4', url: e.id };
+            return { 
+              id: e.id, 
+              streamId: e.id,
+              name: e.title || ('Épisode ' + e.episode), 
+              season: Number(sNum), 
+              episode: Number(e.episode), 
+              ext: e.container_extension || 'mp4', 
+              type: 'episode'
+            };
           })
         };
       });
@@ -120,18 +154,31 @@ XtreamProvider.prototype.seriesInfo = function (id) {
 
 XtreamProvider.prototype.shortEPG = function () { return Promise.resolve([]); };
 
+/* RESOLUTION DYNAMIQUE ET MULTI-FORMAT DES URLS DE FLUX */
 XtreamProvider.prototype.streamUrl = function (item) {
+  if (!item) return Promise.resolve('');
+  
   var u = encodeURIComponent(this.account.username);
   var p = encodeURIComponent(this.account.password);
+  var id = item.streamId || item.id;
+  var ext = item.ext || 'mp4';
 
+  // 1. Direct TV (Live)
   if (item.type === 'live') {
-    return Promise.resolve(this.baseUrl + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&stream=' + item.id);
+    var fmt = Store.settings().liveFormat || 'ts';
+    // Teste la structure directe de streaming Xtream Codes classique
+    return Promise.resolve(this.baseUrl + '/live/' + u + '/' + p + '/' + id + '.' + fmt);
   }
-  if (item.type === 'movie') {
-    return Promise.resolve(this.baseUrl + '/movie/' + u + '/' + p + '/' + item.id + '.' + (item.ext || 'mp4'));
+
+  // 2. Films (VOD)
+  if (item.type === 'movie' || item.type === 'vod') {
+    return Promise.resolve(this.baseUrl + '/movie/' + u + '/' + p + '/' + id + '.' + ext);
   }
-  if (item.type === 'episode') {
-    return Promise.resolve(this.baseUrl + '/series/' + u + '/' + p + '/' + item.id + '.' + (item.ext || 'mp4'));
+
+  // 3. Épisodes de Séries
+  if (item.type === 'episode' || item.type === 'series') {
+    return Promise.resolve(this.baseUrl + '/series/' + u + '/' + p + '/' + id + '.' + ext);
   }
+
   return Promise.resolve(item.url || '');
 };
