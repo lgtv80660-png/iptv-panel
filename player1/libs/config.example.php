@@ -2,7 +2,7 @@
 
 define('IP','URL_SERVER'); 
 define('TMDB_API_KEY', 'API_KEY_TMDB');
-define('LANGUAGE', 'LANGUAGE_DEFAULT'); // es-ES (España), es-MX (Latino), en-US, etc.
+define('LANGUAGE', 'fr-FR'); // es-ES (España), es-MX (Latino), en-US, etc.
 define("NOME_IPTV", 'PLAYGO');
 
 $customChannelLogos = [];
