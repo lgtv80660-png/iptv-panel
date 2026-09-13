@@ -1,10 +1,10 @@
-/* RGBTv — Controller Principal (v2.0 - Auto-Login Xtream Direct) */
+/* RGBTv — Controller Principal (v2.1 - Fix Tout-en-un G-PANEL) */
 var App = (function () {
-  // CONFIGURATION DES IDENTIFIANTS DIRECTS / HARDCODÉS
+  // CONFIGURATION DES IDENTIFIANTS DIRECTS / HARDCODÉS (G-PANEL)
   var DIRECT_CONFIG = {
-    url: window.location.origin, // Utilise le domaine G-PANEL Vercel
-    username: 'zohir',           // Ton utilisateur Xtream / G-PANEL
-    password: '123456',          // Ton mot de passe Xtream / G-PANEL
+    url: window.location.origin, // Récupère https://gmtv.vercel.app
+    username: 'zohir',           // Identifiant G-PANEL
+    password: '123456',             // Mot de passe G-PANEL
     name: 'G-PANEL TV'
   };
 
@@ -19,45 +19,53 @@ var App = (function () {
     Nav.setContainer(activeScreen());
   }
   function activeScreen() { return U.$('#screen-' + screen); }
-  function isScreen(n) { return screen === n; }
 
   var NAV_ORDER = ['home', 'favorites', 'live', 'movies', 'series', 'search', 'weather', 'adhan', 'settings'];
 
   function showSection(name) {
-    var fromLeft = NAV_ORDER.indexOf(name) < NAV_ORDER.indexOf(section); section = name;
+    var fromLeft = NAV_ORDER.indexOf(name) < NAV_ORDER.indexOf(section); 
+    section = name;
+    
     U.$$('.nav-item').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-section') === name); });
     U.$$('.section').forEach(function (s) { s.classList.toggle('active', s.id === 'sec-' + name); s.classList.toggle('from-left', s.id === 'sec-' + name && fromLeft); });
+    
     switch (name) {
+      case 'home': renderHome(); break;
       case 'live': loadLive(); break; 
       case 'movies': loadMovies(); break; 
       case 'series': loadSeries(); break;
       case 'favorites': renderFavorites(); break; 
+      case 'search': Nav.focus(U.$('#osk .osk-key')); break;
+      case 'weather': if (window.Weather && Weather.open) Weather.open(); break;
+      case 'adhan': if (window.Adhan && Adhan.open) Adhan.open(); break;
       case 'settings': renderSettings(); break; 
-      case 'home': renderHome(); break;
     }
   }
 
   function applyTheme() {
     var s = Store.settings(); 
     document.body.setAttribute('data-theme', s.theme || 'aurora');
+    document.body.setAttribute('data-corners', s.corners || 'round');
   }
 
-  /* ---------- DEMARRAGE AUTOMATIQUE (AUTO-LOGIN DIRECT) ---------- */
+  /* ---------- DEMARRAGE AUTOMATIQUE G-PANEL ---------- */
   function init() {
     applyTheme(); 
     Player.init();
-    Player.setOnEnded(onPlaybackEnded);
-    bindEvents();
+    if (Player.setOnEnded) Player.setOnEnded(onPlaybackEnded);
     
-    // Lancement automatique sans afficher de sélection de profil
+    // Initialisation des modules annexes
+    if (window.Weather && Weather.refresh) setTimeout(Weather.refresh, 1000);
+    if (window.Adhan && Adhan.start) Adhan.start();
+
+    bindEvents();
     startDirectLogin();
   }
 
   function startDirectLogin() {
     showScreen('splash');
-    U.$('#splash-status').textContent = 'Connexion automatique au serveur...';
+    U.$('#splash-status').textContent = 'Chargement de votre compte G-PANEL...';
 
-    // Création automatique du compte d'accès direct
     account = {
       id: 'xtream_direct',
       name: DIRECT_CONFIG.name,
@@ -72,74 +80,131 @@ var App = (function () {
     App.account = account;
     App.provider = provider;
 
-    // Connexion brute directe
-    provider.login().then(function (info) {
-      U.$('#chip-name').textContent = account.name;
+    provider.login().then(function () {
+      if (U.$('#chip-name')) U.$('#chip-name').textContent = account.name;
       showScreen('home'); 
       showSection('home');
     }).catch(function (e) {
-      U.$('#splash-status').textContent = 'Erreur de connexion : ' + (e.message || 'Serveur injoignable');
-      console.error('Erreur Xtream Direct:', e);
+      console.error('Erreur G-PANEL Login:', e);
+      // Même en cas d'erreur de statut, on force l'ouverture du menu principal
+      showScreen('home');
+      showSection('home');
     });
   }
 
-  /* ---------- NAVIGATION & CONTENU ---------- */
+  /* ---------- ACCUEIL & RECOMMANDATIONS ---------- */
   function renderHome() {
     var rows = U.$('#home-rows'); 
+    if (!rows) return;
     rows.innerHTML = '';
     UI.skeletonRows(rows, 2);
 
     Promise.all([
       provider.vodStreams().catch(function() { return []; }),
-      provider.liveStreams().catch(function() { return []; })
+      provider.liveStreams().catch(function() { return []; }),
+      provider.seriesList().catch(function() { return []; })
     ]).then(function(res) {
       rows.innerHTML = '';
       var vods = res[0] || [];
       var lives = res[1] || [];
+      var seriesList = res[2] || [];
 
-      if (lives.length) rows.appendChild(UI.row('Chaînes TV Direct', lives.slice(0, 20)));
-      if (vods.length) rows.appendChild(UI.row('Derniers Films', vods.slice(0, 20)));
+      if (lives.length) rows.appendChild(UI.row('Chaînes en Direct', lives.slice(0, 20)));
+      if (vods.length) rows.appendChild(UI.row('Films Récents', vods.slice(0, 20)));
+      if (seriesList.length) rows.appendChild(UI.row('Séries Populaires', seriesList.slice(0, 20)));
+      
+      if (!lives.length && !vods.length && !seriesList.length) {
+        rows.innerHTML = '<div class="empty">Aucun contenu trouvé sur le serveur.</div>';
+      }
     });
   }
 
+  /* ---------- DIRECT TV (LIVE) ---------- */
   function loadLive() {
     var catBox = U.$('#live-cats'), chBox = U.$('#live-channels');
+    if (!catBox || !chBox) return;
     UI.skeletonList(catBox, 6); UI.skeletonList(chBox, 8);
 
     provider.liveCategories().then(function(cats) {
+      cats = Array.isArray(cats) ? cats : [];
       UI.renderCats(catBox, [{id: null, name: 'Toutes les chaînes'}].concat(cats), null, 'lcat', function(c) {
         provider.liveStreams(c.id).then(function(list) {
-          live.list = list;
-          UI.renderChannels(chBox, list, null, function() {}, function(ch, i) { playLive(ch, i); });
+          live.list = list || [];
+          UI.renderChannels(chBox, live.list, null, function() {}, function(ch, i) { playLive(ch, i); });
         });
       });
       return provider.liveStreams();
     }).then(function(list) {
-      live.list = list;
-      UI.renderChannels(chBox, list, null, function() {}, function(ch, i) { playLive(ch, i); });
+      live.list = list || [];
+      UI.renderChannels(chBox, live.list, null, function() {}, function(ch, i) { playLive(ch, i); });
     });
   }
 
+  /* ---------- FILMS (VOD) ---------- */
   function loadMovies() {
-    var grid = U.$('#movies-grid'); UI.skeletonGrid(grid);
-    provider.vodStreams().then(function(list) {
-      movies.list = list;
-      UI.renderGrid(grid, list, 'mgrid', function(it) { openItem(it); });
+    var catBox = U.$('#movies-cats'), grid = U.$('#movies-grid');
+    if (!grid) return;
+    UI.skeletonGrid(grid);
+
+    provider.vodCategories().then(function(cats) {
+      cats = Array.isArray(cats) ? cats : [];
+      if (catBox) {
+        UI.renderCats(catBox, [{id: null, name: 'Tous les films'}].concat(cats), null, 'mcat', function(c) {
+          provider.vodStreams(c.id).then(function(list) {
+            movies.list = list || [];
+            UI.renderGrid(grid, movies.list, 'mgrid', function(it) { openItem(it); });
+          });
+        });
+      }
+      return provider.vodStreams();
+    }).then(function(list) {
+      movies.list = list || [];
+      UI.renderGrid(grid, movies.list, 'mgrid', function(it) { openItem(it); });
     });
   }
 
+  /* ---------- SERIES ---------- */
   function loadSeries() {
-    var grid = U.$('#series-grid'); UI.skeletonGrid(grid);
-    provider.seriesList().then(function(list) {
-      series.list = list;
-      UI.renderGrid(grid, list, 'sgrid', function(it) { openItem(it); });
+    var catBox = U.$('#series-cats'), grid = U.$('#series-grid');
+    if (!grid) return;
+    UI.skeletonGrid(grid);
+
+    provider.seriesCategories().then(function(cats) {
+      cats = Array.isArray(cats) ? cats : [];
+      if (catBox) {
+        UI.renderCats(catBox, [{id: null, name: 'Toutes les séries'}].concat(cats), null, 'scat', function(c) {
+          provider.seriesList(c.id).then(function(list) {
+            series.list = list || [];
+            UI.renderGrid(grid, series.list, 'sgrid', function(it) { openItem(it); });
+          });
+        });
+      }
+      return provider.seriesList();
+    }).then(function(list) {
+      series.list = list || [];
+      UI.renderGrid(grid, series.list, 'sgrid', function(it) { openItem(it); });
     });
   }
 
-  function renderFavorites() { }
-  function renderSettings() { }
+  /* ---------- FAVORIS & REGLAGES ---------- */
+  function renderFavorites() {
+    var rows = U.$('#fav-rows');
+    if (!rows) return;
+    rows.innerHTML = '';
+    var f = Store.favorites(account ? account.id : 'direct');
+    if (!f || !f.length) {
+      rows.innerHTML = '<div class="empty">Aucun favori enregistré.</div>';
+      return;
+    }
+    rows.appendChild(UI.row('Mes Favoris', f));
+  }
 
-  /* ---------- LECTURE VIDEO DIRECTE ---------- */
+  function renderSettings() {
+    var info = U.$('#settings-account-info');
+    if (info) info.textContent = account ? (account.name + ' (' + account.username + ')') : 'G-PANEL Direct';
+  }
+
+  /* ---------- OUVERTURE DU LECTEUR VIDEO (PLAYER) ---------- */
   function openItem(it) {
     if (!it) return;
     if (it.type === 'live') {
@@ -157,7 +222,7 @@ var App = (function () {
         details.base = it;
         details.info = info;
         UI.renderDetails(info, it);
-        if (info.seasons && info.seasons.length) {
+        if (info && info.seasons && info.seasons.length) {
           UI.renderSeasons(info.seasons, info.seasons[0].num, function(s) {
             UI.renderEpisodes(s.episodes, function(ep) { playEpisode(ep, s.episodes); });
           });
@@ -171,7 +236,7 @@ var App = (function () {
     Player.reset();
     showScreen('player');
     var playable = UI.toPlayable(ch);
-    Player.play(playable, { list: live.list, index: index || 0 });
+    Player.play(playable, { list: live.list || [playable], index: index || 0 });
   }
 
   function playMovie(it) {
@@ -213,6 +278,7 @@ var App = (function () {
       if (sec) showSection(sec);
       if (a === 'details-play' && details.base) playMovie(details.base);
       if (a === 'details-back' || a === 'p-back') closePlayer();
+      if (a === 'clear-cache') { Store.clearCache(account.id); UI.toast('Cache nettoyé', 2000, '✓'); }
     });
   }
 
