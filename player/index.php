@@ -1,5 +1,8 @@
 <?php
-// Proxy vidéo & playlist à la volée pour RGBTv
+// player/index.php - G-PANEL RGBTv Player avec Proxy + Auto-Inject Profile
+ini_set('display_errors', 0);
+
+// Proxy PHP ultra-léger pour les flux vidéo (HTTP/HTTPS & CORS)
 if (isset($_GET['proxy_url'])) {
     $rawUrl = urldecode($_GET['proxy_url']);
     if (filter_var($rawUrl, FILTER_VALIDATE_URL)) {
@@ -15,7 +18,7 @@ if (isset($_GET['proxy_url'])) {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
         curl_exec($ch);
         curl_close($ch);
         exit;
@@ -27,7 +30,7 @@ if (isset($_GET['proxy_url'])) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>RGBTv</title>
+<title>G-PANEL - RGBTv Player</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-theme="dark">
@@ -421,5 +424,37 @@ if (isset($_GET['proxy_url'])) {
 <script src="js/adhan.js"></script>
 <script src="js/touch.js"></script>
 <script src="js/app.js"></script>
+
+<!-- AUTO-INJECT DEFAULT PROFILE SCRIPT -->
+<script>
+  (function autoConnectDefaultProfile() {
+    const STORAGE_KEY = 'rgbtv_accounts';
+    let accounts = [];
+    try {
+      accounts = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch (e) {
+      accounts = [];
+    }
+
+    if (accounts.length === 0) {
+      const defaultProfile = {
+        id: 'gpanel_default_' + Date.now(),
+        name: 'G-PANEL TV',
+        type: 'xtream',
+        url: 'https://gmztv.vercel.app',
+        username: 'akli',
+        password: 'akli',
+        avatar: 'img/largeIcon.png',
+        kid: false,
+        created: Date.now()
+      };
+
+      accounts.push(defaultProfile);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+      localStorage.setItem('rgbtv_active_account', defaultProfile.id);
+      window.location.reload();
+    }
+  })();
+</script>
 </body>
 </html>
