@@ -1,4 +1,4 @@
-/* Video Playback Engine — Support Redirection 302 G-PANEL */
+/* Video Playback Engine — Lecture Directe & Fix Ecran Noir */
 var Player = (function () {
   var v = null, currentItem = null, osdTimer = null, hls = null, playlistOpts = null, endCb = null;
 
@@ -7,20 +7,11 @@ var Player = (function () {
     if (!v) return;
     v.ontimeupdate = onTimeUpdate;
     v.onended = function () { if (endCb) endCb(); };
-    v.onerror = function () { UI.toast('Erreur de lecture du flux', 3000, '⚠'); };
-  }
-
-  // Résolution de l'URL finale si le proxy G-PANEL fait une redirection 302 / Token
-  function resolveStreamUrl(url) {
-    return fetch(url, { method: 'HEAD', redirect: 'follow' })
-      .then(function (response) {
-        // Renvoie l'URL finale après redirection (ex: http://154.6.190.48/movie/...)
-        return response.url || url;
-      })
-      .catch(function () {
-        // En cas de blocage CORS sur le HEAD, on tente d'utiliser l'URL directe originale
-        return url;
-      });
+    v.onerror = function (e) { 
+      console.error('Erreur Video Balise HTML5:', v.error);
+      hideLoading();
+      UI.toast('Erreur de lecture du flux', 3000, '⚠'); 
+    };
   }
 
   function play(item, opts) {
@@ -33,32 +24,47 @@ var Player = (function () {
       Store.addHistory(App.account.id, item);
     }
 
-    App.provider.streamUrl(item).then(function (rawUrl) {
-      // 1. Détecter et résoudre la redirection G-PANEL (Vercel -> 154.6.190.48)
-      return resolveStreamUrl(rawUrl);
-    }).then(function (finalUrl) {
-      console.log('Lecture URL finale résolue :', finalUrl);
+    App.provider.streamUrl(item).then(function (finalUrl) {
+      // Nettoyage des protocoles : forcer HTTP pour éviter le blocage SSL/CORS
+      if (finalUrl.indexOf('http://') === -1 && finalUrl.indexOf('https://') === -1) {
+        finalUrl = 'http://' + finalUrl;
+      }
+
+      console.log('Tentative de lecture sur URL :', finalUrl);
 
       if (hls) { hls.destroy(); hls = null; }
 
-      // 2. Si c'est un flux HLS (.m3u8)
+      // 1. Si c'est un flux HLS (.m3u8)
       if (/\.m3u8(\?|$)/i.test(finalUrl) && window.Hls && Hls.isSupported()) {
         hls = new Hls({
-          xhrSetup: function (xhr) {
-            xhr.withCredentials = false;
-          }
+          enableWorker: true,
+          lowLatencyMode: true
         });
         hls.loadSource(finalUrl); 
         hls.attachMedia(v);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          v.play().then(hideLoading).catch(function() { hideLoading(); });
+        });
+        hls.on(Hls.Events.ERROR, function (event, data) {
+          if (data.fatal) hideLoading();
+        });
       } else {
-        // 3. Si c'est un fichier VOD (.mp4 / .mkv / .ts)
+        // 2. Si c'est un fichier VOD (.mp4 / .mkv / .ts) : injection DIRECTE dans la balise vidéo
         v.src = finalUrl;
+        v.load();
+        
+        var playPromise = v.play();
+        if (playPromise !== undefined) {
+          playPromise.then(function() {
+            hideLoading();
+          }).catch(function (err) {
+            console.warn('Lecture bloquée par l\'auto-play :', err);
+            hideLoading();
+          });
+        } else {
+          hideLoading();
+        }
       }
-
-      v.play().then(hideLoading).catch(function (err) {
-        console.warn('Erreur lecture auto, tentative http direct:', err);
-        hideLoading();
-      });
 
       if (U.$('#osd-title')) U.$('#osd-title').textContent = item.name || item.title || 'Vidéo';
       if (U.$('#osd-sub')) U.$('#osd-sub').textContent = item.subtitle || '';
