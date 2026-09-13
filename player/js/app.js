@@ -4,7 +4,7 @@ var App = (function () {
   var DIRECT_CONFIG = {
     url: window.location.origin, // Utilise le domaine G-PANEL Vercel
     username: 'zohir',           // Ton utilisateur Xtream / G-PANEL
-    password: '123',          // Ton mot de passe Xtream / G-PANEL
+    password: '123456',          // Ton mot de passe Xtream / G-PANEL
     name: 'G-PANEL TV'
   };
 
