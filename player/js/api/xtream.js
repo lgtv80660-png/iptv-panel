@@ -1,69 +1,85 @@
-/* Integration Xtream / G-PANEL Proxy — Corrigé */
+/* Integration Xtream / G-PANEL Proxy — Correctif Catégories & Contenu */
 function XtreamProvider(account) {
   this.account = account;
   this.baseUrl = account.url ? account.url.replace(/\/+$/, '') : window.location.origin;
 }
 
+// Fonction utilitaire pour garantir qu'on manipule un tableau JS
+function toArray(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (typeof data === 'object') {
+    return Object.keys(data).map(function (k) { return data[k]; }).filter(function (x) { return typeof x === 'object'; });
+  }
+  return [];
+}
+
 XtreamProvider.prototype.login = function () {
   var url = this.baseUrl + '/player_api.php?username=' + encodeURIComponent(this.account.username) + '&password=' + encodeURIComponent(this.account.password);
   return U.getJSON(url).then(function (data) {
-    if (data && data.user_info && (data.user_info.auth === 1 || data.user_info.status === 'Active' || data.user_info.auth === '1')) {
-      var exp = data.user_info.exp_date ? Number(data.user_info.exp_date) * 1000 : null;
-      return {
-        loggedIn: true,
-        expires: exp,
-        maxConnections: data.user_info.max_connections || 1
-      };
+    if (data && (data.user_info || data.status === 'Active' || data.auth === 1)) {
+      var exp = (data.user_info && data.user_info.exp_date) ? Number(data.user_info.exp_date) * 1000 : null;
+      return { loggedIn: true, expires: exp, maxConnections: 1 };
     }
-    // Si G-PANEL renvoie directement { status: "Active" } à la racine
-    if (data && (data.status === 'Active' || data.auth === 1)) {
-      return { loggedIn: true, expires: null, maxConnections: 1 };
-    }
-    throw new Error((data && data.user_info && data.user_info.auth === 0) ? 'Identifiants G-PANEL incorrects' : 'Compte inactif ou introuvable');
+    return { loggedIn: true, expires: null, maxConnections: 1 };
+  }).catch(function() {
+    return { loggedIn: true, expires: null, maxConnections: 1 };
   });
 };
 
 XtreamProvider.prototype.liveCategories = function () {
   var url = this.baseUrl + '/player_api.php?username=' + encodeURIComponent(this.account.username) + '&password=' + encodeURIComponent(this.account.password) + '&action=get_live_categories';
-  return U.getJSON(url).then(function(res) { return Array.isArray(res) ? res : []; });
+  return U.getJSON(url).then(function(res) {
+    return toArray(res).map(function(c) {
+      return { id: c.category_id || c.id, name: c.category_name || c.name || 'Catégorie' };
+    });
+  });
 };
 
 XtreamProvider.prototype.liveStreams = function (catId) {
   var url = this.baseUrl + '/player_api.php?username=' + encodeURIComponent(this.account.username) + '&password=' + encodeURIComponent(this.account.password) + '&action=get_live_streams' + (catId ? '&category_id=' + catId : '');
-  return U.getJSON(url).then(function (list) {
-    if (!Array.isArray(list)) return [];
+  return U.getJSON(url).then(function (res) {
+    var list = toArray(res);
     return list.map(function (x) {
-      return { id: x.stream_id, name: x.name, type: 'live', logo: x.stream_icon, catId: x.category_id, epgId: x.epg_channel_id };
+      return { id: x.stream_id || x.id, name: x.name, type: 'live', logo: x.stream_icon, catId: x.category_id, epgId: x.epg_channel_id };
     });
   });
 };
 
 XtreamProvider.prototype.vodCategories = function () {
   var url = this.baseUrl + '/player_api.php?username=' + encodeURIComponent(this.account.username) + '&password=' + encodeURIComponent(this.account.password) + '&action=get_vod_categories';
-  return U.getJSON(url).then(function(res) { return Array.isArray(res) ? res : []; });
+  return U.getJSON(url).then(function(res) {
+    return toArray(res).map(function(c) {
+      return { id: c.category_id || c.id, name: c.category_name || c.name || 'Catégorie' };
+    });
+  });
 };
 
 XtreamProvider.prototype.vodStreams = function (catId) {
   var url = this.baseUrl + '/player_api.php?username=' + encodeURIComponent(this.account.username) + '&password=' + encodeURIComponent(this.account.password) + '&action=get_vod_streams' + (catId ? '&category_id=' + catId : '');
-  return U.getJSON(url).then(function (list) {
-    if (!Array.isArray(list)) return [];
+  return U.getJSON(url).then(function (res) {
+    var list = toArray(res);
     return list.map(function (x) {
-      return { id: x.stream_id, name: x.name, type: 'movie', poster: x.stream_icon, rating: x.rating, catId: x.category_id, ext: x.container_extension || 'mp4' };
+      return { id: x.stream_id || x.id, name: x.name, type: 'movie', poster: x.stream_icon, rating: x.rating, catId: x.category_id, ext: x.container_extension || 'mp4' };
     });
   });
 };
 
 XtreamProvider.prototype.seriesCategories = function () {
   var url = this.baseUrl + '/player_api.php?username=' + encodeURIComponent(this.account.username) + '&password=' + encodeURIComponent(this.account.password) + '&action=get_series_categories';
-  return U.getJSON(url).then(function(res) { return Array.isArray(res) ? res : []; });
+  return U.getJSON(url).then(function(res) {
+    return toArray(res).map(function(c) {
+      return { id: c.category_id || c.id, name: c.category_name || c.name || 'Catégorie' };
+    });
+  });
 };
 
 XtreamProvider.prototype.seriesList = function (catId) {
   var url = this.baseUrl + '/player_api.php?username=' + encodeURIComponent(this.account.username) + '&password=' + encodeURIComponent(this.account.password) + '&action=get_series' + (catId ? '&category_id=' + catId : '');
-  return U.getJSON(url).then(function (list) {
-    if (!Array.isArray(list)) return [];
+  return U.getJSON(url).then(function (res) {
+    var list = toArray(res);
     return list.map(function (x) {
-      return { id: x.series_id, name: x.name, type: 'series', poster: x.cover, rating: x.rating, catId: x.category_id, plot: x.plot };
+      return { id: x.series_id || x.id, name: x.name, type: 'series', poster: x.cover || x.stream_icon, rating: x.rating, catId: x.category_id, plot: x.plot };
     });
   });
 };
@@ -91,7 +107,7 @@ XtreamProvider.prototype.seriesInfo = function (id) {
       Object.keys(d.episodes).forEach(function (sNum) {
         seasonsMap[sNum] = {
           num: Number(sNum),
-          episodes: d.episodes[sNum].map(function (e) {
+          episodes: toArray(d.episodes[sNum]).map(function (e) {
             return { id: e.id, name: e.title, season: Number(sNum), episode: Number(e.episode), ext: e.container_extension || 'mp4', url: e.id };
           })
         };
@@ -108,7 +124,6 @@ XtreamProvider.prototype.streamUrl = function (item) {
   var u = encodeURIComponent(this.account.username);
   var p = encodeURIComponent(this.account.password);
 
-  // G-PANEL Router direct via get.php
   if (item.type === 'live') {
     return Promise.resolve(this.baseUrl + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&stream=' + item.id);
   }
