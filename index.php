@@ -19,7 +19,7 @@ $trendingMovies = fetchTMDB('trending/movie/week', $apiKey)['results'] ?? [];
 $popularSeries  = fetchTMDB('tv/popular', $apiKey)['results'] ?? [];
 $topRatedMovies = fetchTMDB('movie/top_rated', $apiKey)['results'] ?? [];
 
-$heroMovies = array_slice($trendingMovies, 0, 5);
+$heroMovies = array_slice($trendingMovies, 0, 10);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -125,7 +125,7 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
             <?php foreach ($trendingMovies as $movie): ?>
                 <?php if (!empty($movie['poster_path'])): ?>
                     <div class="movie-card" 
-                         onmouseenter="previewInHero('movie', <?php echo htmlspecialchars(json_encode($movie), ENT_QUOTES); ?>)" 
+                         onmouseenter="onHoverCard('movie', <?php echo htmlspecialchars(json_encode($movie), ENT_QUOTES); ?>)" 
                          onclick="playTrailerInHero('movie', <?php echo $movie['id']; ?>)" 
                          title="<?php echo htmlspecialchars($movie['title']); ?>">
                         <img src="https://image.tmdb.org/t/p/w500<?php echo $movie['poster_path']; ?>" alt="<?php echo htmlspecialchars($movie['title']); ?>">
@@ -139,7 +139,7 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
             <?php foreach ($popularSeries as $show): ?>
                 <?php if (!empty($show['poster_path'])): ?>
                     <div class="movie-card" 
-                         onmouseenter="previewInHero('tv', <?php echo htmlspecialchars(json_encode($show), ENT_QUOTES); ?>)" 
+                         onmouseenter="onHoverCard('tv', <?php echo htmlspecialchars(json_encode($show), ENT_QUOTES); ?>)" 
                          onclick="playTrailerInHero('tv', <?php echo $show['id']; ?>)" 
                          title="<?php echo htmlspecialchars($show['name']); ?>">
                         <img src="https://image.tmdb.org/t/p/w500<?php echo $show['poster_path']; ?>" alt="<?php echo htmlspecialchars($show['name']); ?>">
@@ -153,7 +153,7 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
             <?php foreach ($topRatedMovies as $top): ?>
                 <?php if (!empty($top['poster_path'])): ?>
                     <div class="movie-card" 
-                         onmouseenter="previewInHero('movie', <?php echo htmlspecialchars(json_encode($top), ENT_QUOTES); ?>)" 
+                         onmouseenter="onHoverCard('movie', <?php echo htmlspecialchars(json_encode($top), ENT_QUOTES); ?>)" 
                          onclick="playTrailerInHero('movie', <?php echo $top['id']; ?>)" 
                          title="<?php echo htmlspecialchars($top['title']); ?>">
                         <img src="https://image.tmdb.org/t/p/w500<?php echo $top['poster_path']; ?>" alt="<?php echo htmlspecialchars($top['title']); ?>">
@@ -165,9 +165,12 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
 
     <script>
         const API_KEY = '<?php echo $apiKey; ?>';
+        const heroMovies = <?php echo json_encode($heroMovies); ?>;
+        let currentIndex = 0;
+        let autoSliderInterval = null;
 
-        // 1. AU SURVOL (onmouseenter) : Change la grande photo + titre + résumé
-        function previewInHero(type, item) {
+        // Met à jour l'affichage du Hero avec une image
+        function updateHeroDisplay(type, item) {
             document.getElementById('heroBadge').innerText = type === 'movie' ? 'FILM' : 'SÉRIE';
             document.getElementById('heroTitle').innerText = item.title || item.name;
             document.getElementById('heroDesc').innerText = item.overview || 'Aucune description disponible.';
@@ -178,8 +181,30 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
             }
         }
 
-        // 2. AU CLIC (onclick) : Remonte la page et lance la bande-annonce vidéo YouTube
+        // 1. GESTION DU SLIDER AUTOMATIQUE (5 secondes)
+        function startAutoSlider() {
+            stopAutoSlider();
+            autoSliderInterval = setInterval(() => {
+                currentIndex = (currentIndex + 1) % heroMovies.length;
+                const currentItem = heroMovies[currentIndex];
+                const type = currentItem.title ? 'movie' : 'tv';
+                updateHeroDisplay(type, currentItem);
+            }, 5000);
+        }
+
+        function stopAutoSlider() {
+            if (autoSliderInterval) clearInterval(autoSliderInterval);
+        }
+
+        // 2. AU SURVOL (Mouse Enter) : Affiche l'image du film survolé et réinitialise le chrono
+        function onHoverCard(type, item) {
+            startAutoSlider(); // Relance la minuterie de 5s à partir de maintenant
+            updateHeroDisplay(type, item);
+        }
+
+        // 3. AU CLIC : Stoppe le slider auto, remonte la page et lance la bande-annonce vidéo
         async function playTrailerInHero(type, id) {
+            stopAutoSlider(); // Stoppe le défilement pendant la vidéo
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
             const res = await fetch(`https://api.themoviedb.org/3/${type}/${id}?api_key=${API_KEY}&language=fr-FR&append_to_response=videos`);
@@ -200,6 +225,9 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
                 heroMedia.innerHTML = `<img src="https://image.tmdb.org/t/p/original${data.backdrop_path}" alt="Hero Backdrop">`;
             }
         }
+
+        // Démarrage initial du slider
+        startAutoSlider();
     </script>
 </body>
 </html>
