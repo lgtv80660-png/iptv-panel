@@ -46,12 +46,12 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
         }
         .btn-admin:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(67, 100, 247, 0.6); }
 
-        /* HERO BANNER AVEC VIDEO OU IMAGE */
+        /* HERO BANNER CONTAINER */
         .hero-container { position: relative; height: 80vh; width: 100%; overflow: hidden; background: #000; }
         
         .hero-media {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1;
+            z-index: 1; transition: opacity 0.5s ease;
         }
         
         .hero-media iframe, .hero-media img {
@@ -100,12 +100,12 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
         <a href="/admin.php" class="btn-admin">Espace Admin</a>
     </header>
 
-    <!-- HERO BANNER DYNAMIQUE -->
+    <!-- HERO BANNER -->
     <div class="hero-container" id="heroContainer">
         <div class="hero-media" id="heroMedia">
             <?php 
                 $first = $heroMovies[0] ?? null;
-                $bg = !empty($first['backdrop_path']) ? "https://image.tmdb.org/t/p/original" . $first['backdrop_path'] : "";
+                $bg = (!empty($first['backdrop_path'])) ? "https://image.tmdb.org/t/p/original" . $first['backdrop_path'] : "";
             ?>
             <img id="heroImage" src="<?php echo $bg; ?>" alt="Hero Backdrop">
         </div>
@@ -118,13 +118,16 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
         </div>
     </div>
 
-    <!-- SECTIONS DE FILMS ET SÉRIES -->
+    <!-- SECTIONS CATALOGUE -->
     <section class="content-section">
         <h2 class="section-title">🔥 Films Tendances cette semaine</h2>
         <div class="movies-grid">
             <?php foreach ($trendingMovies as $movie): ?>
                 <?php if (!empty($movie['poster_path'])): ?>
-                    <div class="movie-card" onclick="playInHero('movie', <?php echo $movie['id']; ?>)" title="<?php echo htmlspecialchars($movie['title']); ?>">
+                    <div class="movie-card" 
+                         onmouseenter="previewInHero('movie', <?php echo htmlspecialchars(json_encode($movie), ENT_QUOTES); ?>)" 
+                         onclick="playTrailerInHero('movie', <?php echo $movie['id']; ?>)" 
+                         title="<?php echo htmlspecialchars($movie['title']); ?>">
                         <img src="https://image.tmdb.org/t/p/w500<?php echo $movie['poster_path']; ?>" alt="<?php echo htmlspecialchars($movie['title']); ?>">
                     </div>
                 <?php endif; ?>
@@ -135,7 +138,10 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
         <div class="movies-grid">
             <?php foreach ($popularSeries as $show): ?>
                 <?php if (!empty($show['poster_path'])): ?>
-                    <div class="movie-card" onclick="playInHero('tv', <?php echo $show['id']; ?>)" title="<?php echo htmlspecialchars($show['name']); ?>">
+                    <div class="movie-card" 
+                         onmouseenter="previewInHero('tv', <?php echo htmlspecialchars(json_encode($show), ENT_QUOTES); ?>)" 
+                         onclick="playTrailerInHero('tv', <?php echo $show['id']; ?>)" 
+                         title="<?php echo htmlspecialchars($show['name']); ?>">
                         <img src="https://image.tmdb.org/t/p/w500<?php echo $show['poster_path']; ?>" alt="<?php echo htmlspecialchars($show['name']); ?>">
                     </div>
                 <?php endif; ?>
@@ -146,7 +152,10 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
         <div class="movies-grid">
             <?php foreach ($topRatedMovies as $top): ?>
                 <?php if (!empty($top['poster_path'])): ?>
-                    <div class="movie-card" onclick="playInHero('movie', <?php echo $top['id']; ?>)" title="<?php echo htmlspecialchars($top['title']); ?>">
+                    <div class="movie-card" 
+                         onmouseenter="previewInHero('movie', <?php echo htmlspecialchars(json_encode($top), ENT_QUOTES); ?>)" 
+                         onclick="playTrailerInHero('movie', <?php echo $top['id']; ?>)" 
+                         title="<?php echo htmlspecialchars($top['title']); ?>">
                         <img src="https://image.tmdb.org/t/p/w500<?php echo $top['poster_path']; ?>" alt="<?php echo htmlspecialchars($top['title']); ?>">
                     </div>
                 <?php endif; ?>
@@ -157,30 +166,37 @@ $heroMovies = array_slice($trendingMovies, 0, 5);
     <script>
         const API_KEY = '<?php echo $apiKey; ?>';
 
-        // Lancement dynamique de la bande-annonce dans l'arrière-plan du Hero
-        async function playInHero(type, id) {
-            // Remonter automatiquement tout en haut sur le Hero
+        // 1. AU SURVOL (onmouseenter) : Change la grande photo + titre + résumé
+        function previewInHero(type, item) {
+            document.getElementById('heroBadge').innerText = type === 'movie' ? 'FILM' : 'SÉRIE';
+            document.getElementById('heroTitle').innerText = item.title || item.name;
+            document.getElementById('heroDesc').innerText = item.overview || 'Aucune description disponible.';
+
+            const heroMedia = document.getElementById('heroMedia');
+            if (item.backdrop_path) {
+                heroMedia.innerHTML = `<img id="heroImage" src="https://image.tmdb.org/t/p/original${item.backdrop_path}" alt="Hero Backdrop">`;
+            }
+        }
+
+        // 2. AU CLIC (onclick) : Remonte la page et lance la bande-annonce vidéo YouTube
+        async function playTrailerInHero(type, id) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
             const res = await fetch(`https://api.themoviedb.org/3/${type}/${id}?api_key=${API_KEY}&language=fr-FR&append_to_response=videos`);
             const data = await res.json();
 
-            // Mettre à jour les textes du Hero
             document.getElementById('heroBadge').innerText = type === 'movie' ? 'FILM' : 'SÉRIE';
             document.getElementById('heroTitle').innerText = data.title || data.name;
             document.getElementById('heroDesc').innerText = data.overview || 'Aucune description disponible.';
 
-            // Récupérer la vidéo YouTube
             const videos = data.videos ? data.videos.results : [];
             const trailer = videos.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || videos[0];
 
             const heroMedia = document.getElementById('heroMedia');
 
             if (trailer) {
-                // Remplacer l'arrière-plan par le player vidéo YouTube en autostart
-                heroMedia.innerHTML = `<iframe src="https://www.youtube.com/embed/${trailer.key}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailer.key}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                heroMedia.innerHTML = `<iframe src="https://www.youtube.com/embed/${trailer.key}?autoplay=1&mute=0&controls=1&loop=1&playlist=${trailer.key}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
             } else if (data.backdrop_path) {
-                // Fallback sur l'image backdrop grand format si pas de vidéo disponible
                 heroMedia.innerHTML = `<img src="https://image.tmdb.org/t/p/original${data.backdrop_path}" alt="Hero Backdrop">`;
             }
         }
