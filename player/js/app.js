@@ -79,17 +79,94 @@ var App = (function () {
     setTimeout(function () { if (s.autostart && last && Store.getAccount(last)) openAccount(last); else showAccounts(); }, 700);
   }
 
-  /* ---------- profiles ---------- */
+  /* ---------- profiles (Netflix Login Override) ---------- */
   function showAccounts(keepManage) {
     if (provider && provider.destroy) provider.destroy();
     provider = null; account = null; App.account = null; App.provider = null;
     if (!keepManage) manageMode = false;
     var list = Store.accounts();
+
+    // S'il n'y a aucun compte, afficher la fenêtre de connexion style Netflix
+    if (!list || list.length === 0) {
+      showScreen('accounts');
+      var wrap = U.$('#screen-accounts .acc-wrap');
+      if (wrap) {
+        wrap.style.padding = '0';
+        wrap.innerHTML = `
+          <style>
+            .netflix-login-box {
+              background: rgba(0, 0, 0, 0.85);
+              padding: 45px 35px;
+              border-radius: 8px;
+              width: 90%;
+              max-width: 380px;
+              box-shadow: 0 10px 30px rgba(0,0,0,0.9);
+              backdrop-filter: blur(10px);
+              border: 1px solid rgba(255,255,255,0.1);
+              margin: 0 auto;
+              text-align: left;
+            }
+            .netflix-login-box h2 { color: #fff; font-size: 26px; margin-bottom: 20px; font-weight: 700; }
+            .netflix-input-group { margin-bottom: 16px; }
+            .netflix-input-group input {
+              width: 100%; padding: 14px; border-radius: 4px; border: 1px solid #333;
+              background: #333; color: #fff; font-size: 15px; outline: none; box-sizing: border-box;
+            }
+            .netflix-input-group input:focus { background: #454545; border-color: #e50914; }
+            .netflix-btn-submit {
+              width: 100%; padding: 14px; border-radius: 4px; border: none;
+              background: #e50914; color: #fff; font-size: 16px; font-weight: bold;
+              cursor: pointer; margin-top: 15px; transition: background 0.2s;
+            }
+            .netflix-btn-submit:hover { background: #f40612; }
+          </style>
+          <div class="netflix-login-box">
+            <div class="brand sm" style="margin-bottom: 25px; font-size: 30px; text-align: left;">RGB<span style="color:#e50914">Tv</span></div>
+            <h2>Sign In</h2>
+            <form id="netflix-form" autocomplete="off">
+              <div class="netflix-input-group">
+                <input type="text" id="net_user" placeholder="Username" required autofocus>
+              </div>
+              <div class="netflix-input-group">
+                <input type="password" id="net_pass" placeholder="Password" required>
+              </div>
+              <button type="submit" class="netflix-btn-submit">Sign In</button>
+            </form>
+          </div>
+        `;
+
+        document.getElementById('netflix-form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          var u = document.getElementById('net_user').value.trim();
+          var p = document.getElementById('net_pass').value.trim();
+          if (!u || !p) return;
+
+          var profile = {
+            id: 'xtream_' + Date.now(),
+            name: u,
+            type: 'xtream',
+            url: window.location.origin,
+            username: u,
+            password: p,
+            avatar: 'img/largeIcon.png',
+            kid: false,
+            created: Date.now()
+          };
+
+          Store.addAccount(profile);
+          openAccount(profile.id, true);
+        });
+      }
+      return;
+    }
+
+    // Comportement normal s'il y a déjà des comptes enregistrés
     UI.renderAccounts(list, manageMode); showScreen('accounts');
     U.$('#manage-btn').innerHTML = (manageMode ? '<svg class="ico" viewBox="0 0 24 24"><path d="M9 16.2l-3.5-3.5L4 14.2 9 19.2 20 8.2l-1.4-1.4z"/></svg><span class="lbl">' + T('acc.done') + '</span>' : '<svg class="ico" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span class="lbl">' + T('acc.manage') + '</span>');
     var last = Store.lastAccount(), el = last ? U.$('.profile[data-id="' + last + '"]') : null;
     Nav.focus(el || U.$('.profile'));
   }
+
   function requirePin(acc) {
     if (!acc.pin) return Promise.resolve(true);
     return new Promise(function (resolve) {
@@ -194,7 +271,6 @@ var App = (function () {
   /* ---------- Add from phone (QR pairing via the Luna service HTTP server) ---------- */
   var pair = { timer: null, on: false, from: null };
   function pairCall(method, params) {
-    // in a desktop browser (dev) the mock server exposes the same endpoints over HTTP
     if (window.RGBTvDesktop && RGBTvDesktop.pair) return RGBTvDesktop.pair(method, params || {}).then(function (r) { if (r && r.returnValue === false) throw new Error(r.errorText || 'pair failed'); return r; });
     if (typeof window.PalmServiceBridge === 'undefined') return U.getJSON('/__pair/' + method + '?' + U.qs(params || {}));
     return U.luna(method, params || {});
@@ -256,7 +332,6 @@ var App = (function () {
   function scheduleRefresh() {
     clearInterval(refreshTimer); var h = Store.settings().refreshHours; if (!h || !account) return;
     refreshTimer = setInterval(function () { if (screen === 'home' && !UI.modalOpen()) refreshPlaylists(false); }, h * 3600e3);
-    // first snapshot (silent) so later diffs make sense
     if (!Store.snapshot(account.id)) setTimeout(function firstSnap() { if (screen === 'player' || live.previewVideo) { setTimeout(firstSnap, 60000); return; } refreshPlaylists(false, true); }, 180000);
   }
   function ids(list) { var m = {}; for (var i = 0; i < list.length; i++) m[list[i].id] = 1; return m; }
@@ -264,7 +339,6 @@ var App = (function () {
     if (!account || !provider) return; if (refreshPlaylists._busy) return; if (!manual && screen === 'player') return; refreshPlaylists._busy = true;
     if (manual) UI.toast(T('toast.refreshing'), 2500, '↻');
     var prev = Store.snapshot(account.id), acc = account;
-    // drop caches so the provider re-downloads
     if (!(silent && !prev)) { Store.clearCache(acc.id); if (provider._mem) provider._mem = {}; if (provider._pending) provider._pending = {}; }
     Promise.all([provider.liveStreams().catch(function () { return null; }), provider.vodStreams().catch(function () { return null; }), provider.seriesList().catch(function () { return null; })]).then(function (r) {
       refreshPlaylists._busy = false; if (account !== acc) return;
@@ -312,7 +386,6 @@ var App = (function () {
     function byAdded(a, b) { return (b.added || 0) - (a.added || 0); }
     function byRating(a, b) { return (Number(b.rating) || 0) - (Number(a.rating) || 0); }
     var heroPool = [];
-    // sequential background loading keeps the TV responsive
     provider.vodStreams().catch(function () { return []; }).then(function (m) {
       if (!alive()) return; var bad = adultCatIds(); m = m.filter(function (x) { return !bad[x.catId]; });
       var latest = m.slice().sort(byAdded).slice(0, 30);
@@ -332,7 +405,7 @@ var App = (function () {
       if (!rows.children.length) rows.appendChild(U.el('div', 'empty', T('home.empty')));
     });
   }
-  /* ---- Hub layouts (VIU-style / IBO-style) ---- */
+
   var HUB_ICONS = {
     live: '<svg viewBox="0 0 24 24"><path d="M3 5h18v12H3zm5 14h8v2H8z"/><path d="M10 8.5v5l4.5-2.5z" fill="#0b0f19"/></svg>',
     movies: '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zm2 2v2h2V6zm0 4v2h2v-2zm0 4v2h2v-2zm10-8v2h2V6zm0 4v2h2v-2zm0 4v2h2v-2zM10 6v12h4V6z"/></svg>',
@@ -383,16 +456,16 @@ var App = (function () {
       tickHubClock(); clearInterval(hero.clockTimer); hero.clockTimer = setInterval(tickHubClock, 15000); return info;
     }
     var main = U.el('div', 'hub-main'), st;
-    if (lay === 'spotlight') {            // one big Live tile + 2x2 grid, continue-watching strip
+    if (lay === 'spotlight') {
       tLive.classList.add('big'); main.appendChild(tLive); var g = U.el('div', 'tile-grid'); [tMov, tSer, tFav, tGuide].forEach(function (t) { g.appendChild(t); }); main.appendChild(g);
       hub.appendChild(main); hub.appendChild(utilBar()); st = strip(); if (st) hub.appendChild(st);
-    } else if (lay === 'trio') {          // three tall tiles + utility bar + info bar
+    } else if (lay === 'trio') {
       [tLive, tMov, tSer].forEach(function (t) { main.appendChild(t); }); hub.appendChild(main);
       hub.appendChild(utilBar(['favorites', 'adhan'])); hub.appendChild(infoBar());
-    } else if (lay === 'mosaic') {        // 4x2 mosaic of equal tiles — every section one press away
+    } else if (lay === 'mosaic') {
       [tLive, tMov, tSer, tFav, tGuide, tWx, tSearch, tSet].forEach(function (t) { main.appendChild(t); }); hub.appendChild(main);
       var ib = infoBar(); ib.classList.add('slim'); hub.appendChild(ib);
-    } else {                              // dashboard: greeting + clock on the left, tiles on the right, strip below
+    } else {
       var side = U.el('div', 'hub-side');
       side.innerHTML = '<div class="hs-hello">' + U.esc(T('hub.hello')) + '</div><div class="hs-name">' + U.esc(account.name) + '</div><div class="hs-time" id="hub-time"></div><div class="hs-date" id="hub-date"></div><div class="hs-exp ' + (ex ? ex.cls : 'ok') + '">' + U.esc(T('hub.expires')) + ': ' + U.esc(ex ? ex.text : T('exp.unlimited')) + '</div>';
       var sideBtns = U.el('div', 'hs-btns'); sideBtns.appendChild(hubUtil('search', T('hub.search'))); sideBtns.appendChild(hubUtil('weather', T('hub.weather'))); sideBtns.appendChild(hubUtil('settings', T('hub.settings'))); sideBtns.appendChild(hubUtil('profiles', T('hub.profiles'), 'switch-account')); sideBtns.appendChild(hubUtil('refresh', T('hub.refresh'), 'refresh-now')); side.classList.add('five'); side.appendChild(sideBtns);
@@ -401,7 +474,6 @@ var App = (function () {
       tickHubClock(); clearInterval(hero.clockTimer); hero.clockTimer = setInterval(tickHubClock, 15000);
     }
     if (!Nav.current() || !Nav.visible(Nav.current())) Nav.focus(tLive);
-    // counts + artwork (cached lists -> cheap)
     var token = renderHub._t = (renderHub._t || 0) + 1; function alive() { return renderHub._t === token && section === 'home' && account && document.body.contains(hub); }
     var bad = adultCatIds();
     provider.liveStreams().catch(function () { return []; }).then(function (lv) {
@@ -416,7 +488,7 @@ var App = (function () {
       return provider.seriesList().catch(function () { return []; });
     }).then(function (sl) {
       if (!alive()) return; sl = (sl || []).filter(function (x) { return !bad[x.catId]; }); var latest = sl.slice().sort(function (a, b) { return (b.added || 0) - (a.added || 0); });
-      U.$('.t-sub', tSer).textContent = T('hub.series.s', { n: sl.length }); setTilePosters(tSer, latest.filter(function (x) { return x.poster; }).slice(0, 3).map(function (x) { return { src: x.poster }; }));
+      U.$('.t-sub', tSer).textContent = T('hub.series.s', { n: latest.length }); setTilePosters(tSer, latest.filter(function (x) { return x.poster; }).slice(0, 3).map(function (x) { return { src: x.poster }; }));
       var bgS = latest.filter(function (x) { return x.backdrop || x.poster; })[0]; if (bgS) U.$('.t-bg', tSer).style.backgroundImage = 'url("' + (bgS.backdrop || bgS.poster) + '")';
       var favV = favs.filter(function (f) { return f.type !== 'live' && f.poster; }); if (favV.length) setTilePosters(tFav, favV.slice(0, 3).map(function (x) { return { src: x.poster }; }));
     });
@@ -458,7 +530,8 @@ var App = (function () {
     TMDB.enrich(h).then(function (it) { if (titleEl._item === it && it.tmdbId) setHeroStatic(it, tag); });
   }
   function setHeroStatic(h, tag) { var t = U.$('#hero-title'); t.textContent = TMDB.cleanTitle(h.name); U.$('#hero-desc').textContent = h.plot || ''; if (h.backdrop) U.$('#hero-bg').style.backgroundImage = 'url("' + h.backdrop + '")'; var meta = []; if (h.year) meta.push(String(h.year).substr(0, 4)); if (h.rating) meta.push('★ ' + Number(h.rating).toFixed(1)); if (h.genre) meta.push(h.genre); if (h.duration) meta.push(h.duration); U.$('#hero-meta').innerHTML = meta.map(function (x) { return '<span>' + U.esc(x) + '</span>'; }).join(''); }
-  /* ---- "On Now" row: favourite channels with live EPG progress ---- */
+
+  /* ---- "On Now" row ---- */
   function onNowRow(chs) {
     var r = U.el('div', 'row'); r.innerHTML = '<div class="row-title">' + U.esc(T('home.onNow')) + '<span class="live-dot"></span><span class="count">' + chs.length + '</span></div>';
     var inner = U.el('div', 'row-items'); r.appendChild(inner); r._inner = inner;
@@ -517,9 +590,6 @@ var App = (function () {
     if (previewAllowed() && !needsUnlock(ch) && !Nav.byPointer()) live.previewTimer = setTimeout(function () { startPreview(ch); }, 1500);
     else if (provider.prefetchUrl && !needsUnlock(ch)) live.prefetchTimer = (clearTimeout(live.prefetchTimer), setTimeout(function () { if (live.selected === ch) provider.prefetchUrl(UI.toPlayable(ch)); }, 500));
   }
-  /* Preview opens a 2nd stream connection on the panel. Most subscriptions allow exactly 1: the preview then blocks the
-     real playback ("stream does not start" / immediate kick) and every hovered channel hammers the server.
-     auto = only when the account allows 2+ connections (or the provider does not tell us). */
   function previewAllowed() {
     var v = Store.settings().preview; if (v === 'off') return false; if (v === 'on') return true;
     return !(account && account.type === 'xtream' && account.maxConn === 1);
@@ -548,7 +618,7 @@ var App = (function () {
     if (live.vl) { var idx = live.vl.items.indexOf(ch); if (idx >= 0) live.vl.refreshItem(idx); }
     if (on && live.selected === ch) stopPreview();
   }
-  var unlocked = {}; // channel ids unlocked this session
+  var unlocked = {};
   function needsUnlock(ch) { return ch && ch.type === 'live' && Store.isLocked(account.id, ch.id) && !unlocked[ch.id]; }
   function askUnlock(ch) {
     return new Promise(function (resolve) {
@@ -567,7 +637,6 @@ var App = (function () {
     if (needsUnlock(ch)) { askUnlock(ch).then(function (ok) { if (ok) playLive(ch, i); }); return; }
     stopPreview(); playerReturn = { screen: 'home' }; Player.reset(); showScreen('player');
     var opts = { list: live.list.length ? live.list : [ch], index: i != null ? i : live.list.indexOf(ch) };
-    // give the panel a moment to release the preview connection before opening the real one (1-connection accounts)
     var settle = live.previewStoppedAt ? Math.max(0, 700 - (Date.now() - live.previewStoppedAt)) : 0;
     if (settle) { Player.showLoading(); setTimeout(function () { if (screen === 'player') Player.play(UI.toPlayable(ch), opts); }, settle); }
     else Player.play(UI.toPlayable(ch), opts);
@@ -692,7 +761,6 @@ var App = (function () {
     UI.renderDetails(it, it);
     var resume = Store.getPos(account.id, 'movie:' + it.id); U.$('#details-resume').style.display = (it.type === 'movie' && resume) ? '' : 'none';
     if (resume) U.$('#details-resume').textContent = T('det.resume', { t: U.fmtTime(resume.pos) });
-    // "More like this": same category (or same list), excluding the item itself
     var simSrc = (it.type === 'movie' ? provider.vodStreams(it.catId || null) : provider.seriesList(it.catId || null));
     Promise.resolve(simSrc).catch(function () { return list || []; }).then(function (l) {
       if (details.base !== it) return; var bad = adultCatIds(); l = (l || []).filter(function (x) { return x.id !== it.id && !bad[x.catId] && x.poster; });
@@ -734,7 +802,6 @@ var App = (function () {
   }
   function playTrailer() {
     var url = details.info && details.info.trailer; if (!url) return;
-    // webOS cannot play YouTube pages inside <video>; open with the system YouTube app via Luna if available.
     if (window.PalmServiceBridge) {
       var b = new PalmServiceBridge(); b.onservicecallback = function () { }; b.call('luna://com.webos.applicationManager/launch', JSON.stringify({ id: 'youtube.leanback.v4', params: { contentTarget: url } }));
     } else window.open(url, '_blank');
@@ -779,7 +846,7 @@ var App = (function () {
     moveSpot(el); noteActivity();
     if (screen === 'details') { var sd = U.$('#screen-details'); sd.classList.toggle('scrolled', scope === 'seasons' || scope === 'episodes' || scope === 'similar'); if (scope === 'similar' && el.classList.contains('card')) UI.scrollRowsTo(el); }
     if (el.classList.contains('card') && el.parentNode.classList.contains('row-items') && scope !== 'similar') UI.scrollRowsTo(el);
-    else if (el._vlist) { /* virtual lists manage their own scrolling */ }
+    else if (el._vlist) { }
     else if (scope === 'episodes') UI.scrollEpisodes(el);
     else if (scope === 'osd') Player.showOsd();
     else if (scope === 'wx' && el.classList.contains('wx-day')) Weather.scrollDays(el);
@@ -810,7 +877,6 @@ var App = (function () {
       if (screen === 'accounts') { if (manageMode) { manageMode = false; showAccounts(); return true; } UI.modal(T('exit.title'), T('exit.close'), [{ label: T('exit'), value: true, danger: true }, { label: T('cancel'), value: false, ghost: true }]).then(function (v) { if (v) exitApp(); }); return true; }
     }
     if (screen === 'home') {
-      // explicit vertical navigation between rows (rows scroll under the hero; geometry alone is unreliable)
       if ((name === 'UP' || name === 'DOWN') && Nav.current() && Nav.current().classList.contains('card') && Nav.current().parentNode.classList.contains('row-items')) {
         var curCard = Nav.current(), curRow = curCard.parentNode.parentNode, rowsEl = curRow.parentNode, rIdx = Array.prototype.indexOf.call(rowsEl.children, curRow);
         var target = null; for (var k = rIdx + (name === 'UP' ? -1 : 1); k >= 0 && k < rowsEl.children.length; k += (name === 'UP' ? -1 : 1)) { if (rowsEl.children[k].classList.contains('row') && rowsEl.children[k].querySelector('.card')) { target = rowsEl.children[k]; break; } }
@@ -835,6 +901,7 @@ var App = (function () {
     if (screen === 'details') U.$('[data-action="details-fav"]').textContent = on ? T('favorited') : T('favorite');
     if (live.vl) { var idx = live.vl.items.indexOf(it); if (idx >= 0) live.vl.refreshItem(idx); }
   }
+
   /* ---------- ambient screensaver (5 min idle outside the player) ---------- */
   var amb = { last: Date.now(), on: false, timer: null, idx: 0, pool: [], flip: 0 };
   function noteActivity() { amb.last = Date.now(); if (amb.on) hideAmbient(); }
