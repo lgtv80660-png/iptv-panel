@@ -1,17 +1,15 @@
-/* RGBTv — Controller Principal (v2.1 - Fix Tout-en-un G-PANEL) */
+/* RGBTv — Controller Principal (v2.2) */
 var App = (function () {
-  // CONFIGURATION DES IDENTIFIANTS DIRECTS / HARDCODÉS (G-PANEL)
   var DIRECT_CONFIG = {
-    url: window.location.origin, // Récupère https://gmtv.vercel.app
-    username: 'zohir',           // Identifiant G-PANEL
-    password: '123456',             // Mot de passe G-PANEL
+    url: window.location.origin,
+    username: 'zohir',
+    password: '123456',
     name: 'G-PANEL TV'
   };
 
   var screen = 'splash', section = 'home', account = null, provider = null;
-  var live = { cats: [], catId: null, list: [], selected: null };
-  var movies = { cats: [], catId: null, list: [] }, series = { cats: [], catId: null, list: [] };
-  var details = { base: null, info: null, season: null, list: null };
+  var live = { list: [] }, movies = { list: [] }, series = { list: [] };
+  var details = { base: null, info: null };
 
   function showScreen(name) {
     screen = name;
@@ -48,13 +46,11 @@ var App = (function () {
     document.body.setAttribute('data-corners', s.corners || 'round');
   }
 
-  /* ---------- DEMARRAGE AUTOMATIQUE G-PANEL ---------- */
   function init() {
     applyTheme(); 
     Player.init();
     if (Player.setOnEnded) Player.setOnEnded(onPlaybackEnded);
     
-    // Initialisation des modules annexes
     if (window.Weather && Weather.refresh) setTimeout(Weather.refresh, 1000);
     if (window.Adhan && Adhan.start) Adhan.start();
 
@@ -64,7 +60,7 @@ var App = (function () {
 
   function startDirectLogin() {
     showScreen('splash');
-    U.$('#splash-status').textContent = 'Chargement de votre compte G-PANEL...';
+    U.$('#splash-status').textContent = 'Connexion à G-PANEL...';
 
     account = {
       id: 'xtream_direct',
@@ -84,15 +80,9 @@ var App = (function () {
       if (U.$('#chip-name')) U.$('#chip-name').textContent = account.name;
       showScreen('home'); 
       showSection('home');
-    }).catch(function (e) {
-      console.error('Erreur G-PANEL Login:', e);
-      // Même en cas d'erreur de statut, on force l'ouverture du menu principal
-      showScreen('home');
-      showSection('home');
     });
   }
 
-  /* ---------- ACCUEIL & RECOMMANDATIONS ---------- */
   function renderHome() {
     var rows = U.$('#home-rows'); 
     if (!rows) return;
@@ -110,24 +100,22 @@ var App = (function () {
       var seriesList = res[2] || [];
 
       if (lives.length) rows.appendChild(UI.row('Chaînes en Direct', lives.slice(0, 20)));
-      if (vods.length) rows.appendChild(UI.row('Films Récents', vods.slice(0, 20)));
-      if (seriesList.length) rows.appendChild(UI.row('Séries Populaires', seriesList.slice(0, 20)));
+      if (vods.length) rows.appendChild(UI.row('Derniers Films', vods.slice(0, 20)));
+      if (seriesList.length) rows.appendChild(UI.row('Séries', seriesList.slice(0, 20)));
       
       if (!lives.length && !vods.length && !seriesList.length) {
-        rows.innerHTML = '<div class="empty">Aucun contenu trouvé sur le serveur.</div>';
+        rows.innerHTML = '<div class="empty">Aucun contenu retourné par le proxy.</div>';
       }
     });
   }
 
-  /* ---------- DIRECT TV (LIVE) ---------- */
   function loadLive() {
     var catBox = U.$('#live-cats'), chBox = U.$('#live-channels');
     if (!catBox || !chBox) return;
     UI.skeletonList(catBox, 6); UI.skeletonList(chBox, 8);
 
     provider.liveCategories().then(function(cats) {
-      cats = Array.isArray(cats) ? cats : [];
-      UI.renderCats(catBox, [{id: null, name: 'Toutes les chaînes'}].concat(cats), null, 'lcat', function(c) {
+      UI.renderCats(catBox, [{id: null, name: 'Toutes les chaînes'}].concat(cats || []), null, 'lcat', function(c) {
         provider.liveStreams(c.id).then(function(list) {
           live.list = list || [];
           UI.renderChannels(chBox, live.list, null, function() {}, function(ch, i) { playLive(ch, i); });
@@ -140,16 +128,14 @@ var App = (function () {
     });
   }
 
-  /* ---------- FILMS (VOD) ---------- */
   function loadMovies() {
     var catBox = U.$('#movies-cats'), grid = U.$('#movies-grid');
     if (!grid) return;
     UI.skeletonGrid(grid);
 
     provider.vodCategories().then(function(cats) {
-      cats = Array.isArray(cats) ? cats : [];
       if (catBox) {
-        UI.renderCats(catBox, [{id: null, name: 'Tous les films'}].concat(cats), null, 'mcat', function(c) {
+        UI.renderCats(catBox, [{id: null, name: 'Tous les films'}].concat(cats || []), null, 'mcat', function(c) {
           provider.vodStreams(c.id).then(function(list) {
             movies.list = list || [];
             UI.renderGrid(grid, movies.list, 'mgrid', function(it) { openItem(it); });
@@ -163,16 +149,14 @@ var App = (function () {
     });
   }
 
-  /* ---------- SERIES ---------- */
   function loadSeries() {
     var catBox = U.$('#series-cats'), grid = U.$('#series-grid');
     if (!grid) return;
     UI.skeletonGrid(grid);
 
     provider.seriesCategories().then(function(cats) {
-      cats = Array.isArray(cats) ? cats : [];
       if (catBox) {
-        UI.renderCats(catBox, [{id: null, name: 'Toutes les séries'}].concat(cats), null, 'scat', function(c) {
+        UI.renderCats(catBox, [{id: null, name: 'Toutes les séries'}].concat(cats || []), null, 'scat', function(c) {
           provider.seriesList(c.id).then(function(list) {
             series.list = list || [];
             UI.renderGrid(grid, series.list, 'sgrid', function(it) { openItem(it); });
@@ -186,14 +170,13 @@ var App = (function () {
     });
   }
 
-  /* ---------- FAVORIS & REGLAGES ---------- */
   function renderFavorites() {
     var rows = U.$('#fav-rows');
     if (!rows) return;
     rows.innerHTML = '';
-    var f = Store.favorites(account ? account.id : 'direct');
+    var f = Store.favorites('direct');
     if (!f || !f.length) {
-      rows.innerHTML = '<div class="empty">Aucun favori enregistré.</div>';
+      rows.innerHTML = '<div class="empty">Aucun favori.</div>';
       return;
     }
     rows.appendChild(UI.row('Mes Favoris', f));
@@ -201,20 +184,13 @@ var App = (function () {
 
   function renderSettings() {
     var info = U.$('#settings-account-info');
-    if (info) info.textContent = account ? (account.name + ' (' + account.username + ')') : 'G-PANEL Direct';
+    if (info) info.textContent = DIRECT_CONFIG.name + ' (' + DIRECT_CONFIG.username + ')';
   }
 
-  /* ---------- OUVERTURE DU LECTEUR VIDEO (PLAYER) ---------- */
   function openItem(it) {
     if (!it) return;
-    if (it.type === 'live') {
-      playLive(it, 0);
-      return;
-    }
-    if (it.type === 'movie' || it.type === 'vod') {
-      playMovie(it);
-      return;
-    }
+    if (it.type === 'live') { playLive(it, 0); return; }
+    if (it.type === 'movie' || it.type === 'vod') { playMovie(it); return; }
     if (it.type === 'series') {
       showScreen('details');
       UI.renderDetails(it, it);
@@ -254,15 +230,8 @@ var App = (function () {
     Player.play(playable, { list: list || [playable], index: 0 });
   }
 
-  function onPlaybackEnded() {
-    closePlayer();
-  }
-
-  function closePlayer() {
-    Player.stop();
-    Player.reset();
-    showScreen('home');
-  }
+  function onPlaybackEnded() { closePlayer(); }
+  function closePlayer() { Player.stop(); Player.reset(); showScreen('home'); }
 
   function bindEvents() {
     document.addEventListener('click', function (ev) {
@@ -278,7 +247,6 @@ var App = (function () {
       if (sec) showSection(sec);
       if (a === 'details-play' && details.base) playMovie(details.base);
       if (a === 'details-back' || a === 'p-back') closePlayer();
-      if (a === 'clear-cache') { Store.clearCache(account.id); UI.toast('Cache nettoyé', 2000, '✓'); }
     });
   }
 
