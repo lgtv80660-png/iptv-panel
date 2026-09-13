@@ -1,6 +1,6 @@
 <?php
 
-define('IP','https://gmztv.vercel.app'); 
+define('IP','http://asmrasmr.live'); 
 define('TMDB_API_KEY', 'API_KEY_TMDB');
 define('LANGUAGE', 'en-US'); // es-ES (España), es-MX (Latino), en-US, etc.
 define("NOME_IPTV", 'PLAYGO');
