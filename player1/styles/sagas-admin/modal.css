@@ -1,0 +1,889 @@
+.modal {
+    z-index: 10000 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    pointer-events: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    display: none !important;
+    isolation: isolate !important;
+}
+
+.modal.show {
+    display: block !important;
+    pointer-events: auto !important;
+    z-index: 10000 !important;
+}
+
+.modal:not(.show) {
+    display: none !important;
+    pointer-events: none !important;
+}
+
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.7) !important;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9999 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    pointer-events: auto !important;
+    cursor: pointer;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+}
+
+.modal-backdrop.show {
+    opacity: 1 !important;
+}
+
+.modal-dialog {
+    z-index: 10002 !important;
+    position: relative !important;
+    margin: 40px auto !important;
+    max-width: 90% !important;
+    width: 1200px !important;
+    pointer-events: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+    isolation: isolate !important;
+}
+
+#sagaModal .modal-dialog {
+    z-index: 10002 !important;
+    position: relative !important;
+}
+
+#sagaModal.show .modal-dialog {
+    z-index: 10002 !important;
+    position: relative !important;
+}
+
+.modal.show .modal-dialog {
+    z-index: 10002 !important;
+    position: relative !important;
+}
+
+.saga-modal-content {
+    background: #1a1a1f;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    z-index: 10003 !important;
+    position: relative !important;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#sagaModal .saga-modal-content {
+    z-index: 10003 !important;
+    position: relative !important;
+}
+
+#sagaModal.show .saga-modal-content {
+    z-index: 10003 !important;
+    position: relative !important;
+}
+
+.modal.show .saga-modal-content {
+    z-index: 10003 !important;
+    position: relative !important;
+}
+
+.modal.show .modal-dialog .saga-modal-content {
+    z-index: 10003 !important;
+    position: relative !important;
+}
+
+.saga-modal-content .modal-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 24px 32px;
+    background: #1f1f24;
+    border-radius: 12px 12px 0 0;
+    flex-shrink: 0;
+}
+
+.saga-modal-content .modal-body {
+    padding: 32px;
+    overflow-y: auto;
+    flex: 1;
+    background: #1a1a1f;
+    min-height: 0;
+}
+
+.saga-modal-content .modal-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 24px 32px;
+    background: #1f1f24;
+    border-radius: 0 0 12px 12px;
+    flex-shrink: 0;
+}
+
+.saga-modal-header {
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.saga-modal-header h2 {
+    color: #fff;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: 0.5px;
+}
+
+.saga-modal-close {
+    background: transparent;
+    border: none;
+    color: #bfc1c8;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s, color 0.2s;
+}
+
+.saga-modal-close:hover {
+    background: #2a2a32;
+    color: #fff;
+}
+
+.saga-modal-body {
+    padding: 30px;
+}
+
+.saga-modal-section {
+    margin-bottom: 30px;
+}
+
+.saga-modal-section:last-child {
+    margin-bottom: 0;
+}
+
+.saga-modal-section label,
+.saga-field-label {
+    display: block;
+    color: #bfc1c8;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.saga-modal-section input[type="text"] {
+    width: 100%;
+    padding: 12px 16px;
+    background: #25252d;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 400;
+    box-sizing: border-box;
+    transition: all 0.2s;
+}
+
+.saga-modal-section input[type="text"]::placeholder {
+    color: #6b6b75;
+}
+
+.saga-modal-section input[type="text"]:focus {
+    outline: none;
+    border-color: rgba(131, 31, 94, 0.6);
+    background: #2a2a32;
+    box-shadow: 0 0 0 3px rgba(131, 31, 94, 0.2);
+}
+
+.saga-modal-section input[type="text"].is-invalid {
+    border-color: #dc3545;
+    background: #2a2a32;
+}
+
+.saga-modal-section input[type="text"].is-invalid:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.2);
+}
+
+.saga-modal-section .invalid-feedback {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    font-size: 0.875rem;
+    color: #dc3545;
+    font-weight: 500;
+}
+
+.saga-dropzone {
+    position: relative;
+    width: 100%;
+    min-height: 180px;
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    background: #25252d;
+    cursor: pointer;
+    transition: all 0.3s;
+    overflow: hidden;
+}
+
+.saga-dropzone:hover {
+    border-color: rgba(131, 31, 94, 0.5);
+    background: #2a2a32;
+}
+
+.saga-dropzone.dragover {
+    border-color: rgba(131, 31, 94, 0.8);
+    background: rgba(131, 31, 94, 0.1);
+}
+
+.saga-dropzone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    height: 100%;
+}
+
+.saga-dropzone-content i {
+    font-size: 3rem;
+    color: #6b6b75;
+    margin-bottom: 16px;
+    transition: color 0.3s;
+}
+
+.saga-dropzone:hover .saga-dropzone-content i {
+    color: rgba(131, 31, 94, 0.8);
+}
+
+.saga-dropzone-text {
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 500;
+    margin: 0 0 8px 0;
+}
+
+.saga-dropzone-hint {
+    color: #6b6b75;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.saga-image-preview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.saga-modal-movies-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 18px;
+    max-height: 450px;
+    overflow-y: auto;
+    background: #151518;
+    border: 1px solid #1a1a1f;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 12px;
+}
+
+.saga-modal-movies-grid::-webkit-scrollbar {
+    width: 8px;
+}
+
+.saga-modal-movies-grid::-webkit-scrollbar-track {
+    background: #1a1a1f;
+    border-radius: 4px;
+}
+
+.saga-modal-movies-grid::-webkit-scrollbar-thumb {
+    background: #2a2a32;
+    border-radius: 4px;
+}
+
+.saga-modal-movies-grid::-webkit-scrollbar-thumb:hover {
+    background: #3a3a42;
+}
+
+.saga-modal-movie-card {
+    background: #25252d;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    transition: all 0.2s;
+    cursor: grab;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.saga-modal-movie-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.15);
+    background: #2a2a32;
+}
+
+.saga-modal-movie-card:active {
+    cursor: grabbing;
+}
+
+.saga-modal-movie-card.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+}
+
+.sortable-placeholder {
+    background: rgba(131, 31, 94, 0.1);
+    border: 2px dashed rgba(131, 31, 94, 0.5);
+    border-radius: 8px;
+    margin: 4px 0;
+}
+
+.saga-modal-movie-order {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 3px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.order-number {
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.75rem;
+    min-width: 18px;
+    text-align: center;
+}
+
+.order-handle {
+    display: none;
+}
+
+.saga-modal-movie-type {
+    color: #6b6b75;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.saga-modal-movie-poster {
+    width: 100%;
+    aspect-ratio: 2/3;
+    object-fit: cover;
+    background: #232027;
+}
+
+.saga-modal-movie-poster-placeholder {
+    width: 100%;
+    aspect-ratio: 2/3;
+    background: #232027;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #bfc1c8;
+    font-size: 0.85rem;
+}
+
+.saga-modal-movie-info {
+    padding: 10px;
+    background: #1f1f24;
+}
+
+.saga-modal-movie-name {
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+
+.saga-modal-movie-id {
+    color: #6b6b75;
+    font-size: 0.7rem;
+    font-family: monospace;
+}
+
+.saga-modal-remove-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    background: rgba(229, 9, 20, 0);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0;
+    transform: scale(0.8);
+}
+
+.saga-modal-movie-card:hover .saga-modal-remove-btn {
+    opacity: 1;
+    transform: scale(1);
+    background: rgba(229, 9, 20, 0.9);
+}
+
+.saga-modal-remove-btn:hover {
+    background: rgba(229, 9, 20, 1) !important;
+    transform: scale(1.1) !important;
+}
+
+.saga-search-wrapper {
+    margin-bottom: 16px;
+}
+
+.saga-search-input-wrapper {
+    position: relative;
+    margin-bottom: 12px;
+}
+
+.saga-search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6b6b75;
+    font-size: 0.9rem;
+    pointer-events: none;
+    z-index: 10;
+    line-height: 1;
+}
+
+.saga-search-input {
+    width: 100%;
+    padding: 12px 16px 12px 52px;
+    background: #25252d;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+    transition: all 0.2s;
+    position: relative;
+    z-index: 1;
+}
+
+.saga-search-input:focus {
+    outline: none;
+    border-color: rgba(131, 31, 94, 0.6);
+    background: #2a2a32;
+    box-shadow: 0 0 0 3px rgba(131, 31, 94, 0.2);
+}
+
+.saga-segmented-control {
+    display: inline-flex;
+    background: #25252d;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 4px;
+    position: relative;
+}
+
+.saga-segmented-btn {
+    padding: 8px 20px;
+    background: transparent;
+    border: none;
+    color: #bfc1c8;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    z-index: 1;
+}
+
+.saga-segmented-btn i {
+    font-size: 0.85rem;
+}
+
+.saga-segmented-btn.active {
+    color: #fff;
+    background: linear-gradient(90deg, #831f5e 0%, #f50b60 100%);
+    box-shadow: 0 2px 8px rgba(131, 31, 94, 0.4);
+}
+
+.saga-segmented-btn:not(.active):hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.saga-search-tab-content {
+    display: none;
+}
+
+.saga-search-tab-content.active {
+    display: block;
+}
+
+.saga-empty-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: #bfc1c8;
+    font-size: 1.1rem;
+}
+
+.saga-search-result-type {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.saga-search-results {
+    max-height: 400px;
+    overflow-y: auto;
+    background: #25252d;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+}
+
+.saga-search-results::-webkit-scrollbar {
+    width: 8px;
+}
+
+.saga-search-results::-webkit-scrollbar-track {
+    background: #1a1a1f;
+    border-radius: 4px;
+}
+
+.saga-search-results::-webkit-scrollbar-thumb {
+    background: #2a2a32;
+    border-radius: 4px;
+}
+
+.saga-search-results::-webkit-scrollbar-thumb:hover {
+    background: #3a3a42;
+}
+
+.saga-search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    background: #2a2a32;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.saga-search-result-item:hover {
+    background: #2f2f38;
+    border-color: rgba(131, 31, 94, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.saga-search-result-poster {
+    width: 60px;
+    min-width: 60px;
+    height: 90px;
+    object-fit: cover;
+    background: #1a1a1f;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.saga-search-result-poster-placeholder {
+    width: 60px;
+    min-width: 60px;
+    height: 90px;
+    background: #1a1a1f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b6b75;
+    font-size: 0.65rem;
+    text-align: center;
+    padding: 8px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.saga-search-result-info {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
+.saga-search-result-name {
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+
+.saga-search-result-id {
+    color: #6b6b75;
+    font-size: 0.75rem;
+    font-family: monospace;
+    margin: 0;
+}
+
+.saga-search-add-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 6px 12px;
+    background: linear-gradient(90deg, #831f5e 0%, #f50b60 100%);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 0.8rem;
+    font-weight: 600;
+    flex-shrink: 0;
+    gap: 4px;
+}
+
+.saga-search-add-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(131, 31, 94, 0.4);
+}
+
+.saga-search-add-btn.added {
+    background: #10b981;
+}
+
+.saga-search-add-btn.added i::before {
+    content: "\f00c";
+}
+
+.saga-search-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: #bfc1c8;
+    font-size: 1rem;
+    grid-column: 1 / -1;
+}
+
+.saga-image-preview {
+    margin-top: 15px;
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    border-radius: 8px;
+    display: none;
+}
+
+.saga-modal-footer {
+    background: #232027;
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+}
+
+.saga-modal-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.saga-modal-btn-primary {
+    background: linear-gradient(90deg, #831f5e 0%, #f50b60 100%);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(131, 31, 94, 0.3);
+}
+
+.saga-modal-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(131, 31, 94, 0.5);
+}
+
+.saga-modal-btn-secondary {
+    background: #2a2a32;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.saga-modal-btn-secondary:hover {
+    background: #333;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.saga-modal-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@media (max-width: 600px) {
+    .modal-dialog {
+        max-width: 95% !important;
+        width: 95% !important;
+        margin: 20px auto !important;
+    }
+    
+    .saga-modal-content {
+        max-height: calc(100vh - 40px);
+    }
+    
+    .saga-modal-header,
+    .saga-modal-body,
+    .saga-modal-footer {
+        padding: 20px;
+    }
+    
+    .saga-modal-header h2 {
+        font-size: 1.4rem;
+    }
+    
+    .saga-modal-footer {
+        flex-direction: column;
+    }
+    
+    .saga-modal-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+#sagaSuccessModal {
+    z-index: 10010 !important;
+}
+
+#sagaSuccessModal .modal-dialog {
+    z-index: 10011 !important;
+}
+
+.saga-success-modal-content {
+    background: linear-gradient(90deg, #831f5e 0%, #f50b60 100%);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 15px 45px rgba(131, 31, 94, 0.5);
+    max-width: 400px;
+    margin: 0 auto;
+    z-index: 10012 !important;
+}
+
+.saga-success-modal-body {
+    padding: 40px 30px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+}
+
+.saga-success-icon {
+    margin-bottom: 20px;
+}
+
+.saga-success-icon i {
+    font-size: 4rem;
+    color: #10b981;
+    text-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.saga-success-title {
+    color: #fff;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.saga-success-message {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    margin-bottom: 30px;
+    line-height: 1.5;
+}
+
+.saga-success-btn {
+    background: linear-gradient(90deg, #f50b60 0%, #831f5e 100%);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 12px 40px;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 15px rgba(245, 11, 96, 0.4);
+}
+
+.saga-success-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(245, 11, 96, 0.5);
+}
+
+.saga-success-btn:active {
+    transform: translateY(0);
+}
+

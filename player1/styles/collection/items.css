@@ -1,0 +1,142 @@
+.collection-list-item {
+    background: rgba(24, 24, 24, 0.9);
+    border-radius: 12px;
+    margin-bottom: 24px;
+    padding: 20px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.collection-list-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.collection-poster {
+    width: 100%;
+    height: 400px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #232027;
+}
+
+.collection-info-title {
+    color: #fff;
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    margin-top: 0;
+}
+
+.collection-info-genres {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.collection-info-genres li {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+}
+
+.collection-info-meta {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px 0;
+    color: #fff;
+}
+
+.collection-info-meta li {
+    margin-bottom: 8px;
+    font-size: 1rem;
+}
+
+.collection-info-meta li strong {
+    background: -webkit-linear-gradient(0deg, #831f5e 0%, #f50b60 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-right: 8px;
+}
+
+.collection-info-plot {
+    color: rgba(255,255,255,0.8);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.collection-info-plot .plot-text-wrapper {
+    position: relative;
+}
+
+.collection-info-plot .plot-text {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: rgba(255,255,255,0.8);
+    transition: max-height 0.3s ease;
+}
+
+.collection-info-plot .plot-text.collapsed {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    max-height: 100px;
+}
+
+.collection-info-plot .plot-text.expanded {
+    display: block;
+    max-height: none;
+}
+
+.collection-info-plot .plot-toggle-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 8px 0;
+    margin-top: 8px;
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 14px;
+    transition: color 0.2s ease;
+    font-family: 'Open Sans', sans-serif;
+    width: 100%;
+}
+
+.collection-info-plot .plot-toggle-btn:hover {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.collection-info-plot .plot-toggle-btn i {
+    transition: transform 0.3s ease;
+    font-size: 12px;
+}
+
+.collection-info-plot .plot-toggle-btn.expanded i {
+    transform: rotate(180deg);
+}
+
+@media (max-width: 768px) {
+    .collection-poster {
+        height: 300px;
+        margin-bottom: 20px;
+    }
+    .collection-info-title {
+        font-size: 1.4rem;
+    }
+}
+

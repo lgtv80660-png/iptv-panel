@@ -1,0 +1,88 @@
+@media (max-width: 600px) {
+    .mobile-categorias-filter {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+        gap: 10px;
+        position: relative;
+    }
+    #mobileCategoriasBtn {
+        background: linear-gradient(180deg, #e50914 0%, #c8008f 100%) !important;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 18px;
+        font-size: 1.08rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 2px 8px #c8008f40;
+    }
+    #mobileCategoriasClear {
+        font-size: 1.5rem;
+        color: #e50914;
+        background: #fff;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: 2px solid #e50914;
+        margin-left: 6px;
+        transition: background 0.2s, color 0.2s;
+    }
+    #mobileCategoriasClear:hover {
+        background: #e50914;
+        color: #fff;
+    }
+    .mobile-categorias-dropdown {
+        display: none;
+        position: absolute;
+        top: 44px;
+        left: 0;
+        right: 0;
+        background: #181818;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px #0007;
+        z-index: 100;
+        padding: 8px 0;
+        max-height: 220px;
+        overflow-y: auto;
+    }
+    .mobile-categorias-dropdown.active {
+        display: block;
+    }
+    .mobile-categorias-dropdown .cat-option {
+        padding: 10px 18px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 1.08rem;
+        transition: background 0.2s, color 0.2s;
+        border-bottom: 1px solid #232027;
+    }
+    .mobile-categorias-dropdown .cat-option:last-child {
+        border-bottom: none;
+    }
+    .mobile-categorias-dropdown .cat-option.selected,
+    .mobile-categorias-dropdown .cat-option:hover {
+        background: #e50914;
+        color: #fff;
+    }
+    .sidebar-categorias {
+        display: none !important;
+    }
+}
+@media (min-width: 601px) {
+    .mobile-categorias-filter {
+        display: none !important;
+    }
+}
+@keyframes playPulse {
+    0% { box-shadow: 0 2px 8px #e5091440, 0 0 0 0 #e5091422; }
+    100% { box-shadow: 0 2px 16px #e5091440, 0 0 0 8px #e5091400; }
+}
+
