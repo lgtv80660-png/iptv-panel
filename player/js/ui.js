@@ -5,7 +5,7 @@ var UI = (function () {
     var t = U.$('#toast'), bar = U.$('#toast-bar'); ms = ms || 2500;
     U.$('#toast-ico').textContent = icon || ''; U.$('#toast-msg').textContent = msg;
     t.classList.remove('show'); if (bar) { bar.style.transition = 'none'; bar.style.transform = 'scaleX(1)'; }
-    void t.offsetWidth; // restart transitions
+    void t.offsetWidth;
     t.classList.add('show'); if (bar) { bar.style.transition = 'transform ' + ms + 'ms linear'; bar.style.transform = 'scaleX(0)'; }
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, ms);
   }
@@ -29,7 +29,7 @@ var UI = (function () {
 
   function avatarColor(s) { var cols = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#14b8a6', '#ec4899']; var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff; return cols[h % cols.length]; }
 
-  /* ---- profiles (Netflix style) ---- */
+  /* ---- profiles ---- */
   function renderAccounts(list, manage) {
     var wrap = U.$('#acc-list'); wrap.innerHTML = ''; wrap.classList.toggle('manage', !!manage);
     U.$('#profiles-title').textContent = manage ? I18n.t('acc.manage') : (list.length ? I18n.t('acc.who') : I18n.t('acc.first'));
@@ -37,7 +37,7 @@ var UI = (function () {
       var c = U.el('div', 'profile focusable'); c.setAttribute('data-nav', 'acc'); c.setAttribute('data-id', a.id);
       var hist = Store.history(a.id), lastW = hist[0], favN = Store.favorites(a.id).length;
       var lastHtml = lastW ? '<div class="last" title="' + U.esc(lastW.name || '') + '">' + ((lastW.poster || lastW.logo) ? '<i style="background-image:url(\'' + U.esc(lastW.poster || lastW.logo) + '\')"></i>' : '') + '<span>' + U.esc(I18n.t('last.watched', { t: lastW.name || '' })) + '</span></div>' : '';
-      c.innerHTML = '<div class="pav"><img src="' + Avatars.url(a.avatar) + '" alt="">' + (a.pin ? '<span class="lock">🔒</span>' : '') + (a.kids ? '<span class="kids">KIDS</span>' : '') + (favN ? '<span class="badge-n">★ ' + favN + '</span>' : '') + '<div class="edit">✎</div></div><div class="name">' + U.esc(a.name) + '</div><div class="type">' + a.type + '</div>' + lastHtml;
+      c.innerHTML = '<div class="pav"><img src="' + Avatars.url(a.avatar) + '" alt="">' + (a.pin ? '<span class="lock">🔒</span>' : '') + (a.kids ? '<span class="kids">KIDS</span>' : '') + (favN ? '<span class="badge-n">★ ' + favN + '</span>' : '') + '<div class="edit">✎</div></div><div class="name">' + U.esc(a.name) + '</div><div class="type">XTREAM</div>' + lastHtml;
       c.onclick = function () { if (manage) App.accountMenu(a.id); else App.openAccount(a.id); };
       wrap.appendChild(c);
     });
@@ -54,7 +54,7 @@ var UI = (function () {
       el.appendChild(d);
     });
   }
-  /* skeleton loaders */
+  
   function skeletonRows(container, n) {
     container.innerHTML = '';
     for (var i = 0; i < (n || 2); i++) { var r = U.el('div', 'row'); r.innerHTML = '<div class="skeleton sk-line"></div>'; var items = U.el('div', 'sk-row'); for (var j = 0; j < 8; j++) items.appendChild(U.el('div', 'skeleton sk-card')); r.appendChild(items); container.appendChild(r); }
@@ -89,16 +89,14 @@ var UI = (function () {
     var inner = U.el('div', 'row-items'); items.slice(0, opts.max || 40).forEach(function (it) { inner.appendChild(card(it, { list: items, nav: opts.nav || 'row' })); });
     r.appendChild(inner); r._inner = inner; return r;
   }
-  /* Horizontal scroll of a row so focused card stays in view; vertical scroll of the rows container */
   function scrollRowsTo(card) {
     var inner = card.parentNode, rowEl = inner.parentNode, rows = rowEl.parentNode;
     var visibleW = 1920 - 120, w = card.offsetWidth + 24, rtl = I18n.isRTL();
     var total = 0; for (var j = 0; j < inner.children.length; j++) total += inner.children[j].offsetWidth + 24;
-    var pos = rtl ? (inner.offsetWidth - card.offsetLeft - card.offsetWidth) : card.offsetLeft; // distance from the row start edge
+    var pos = rtl ? (inner.offsetWidth - card.offsetLeft - card.offsetWidth) : card.offsetLeft;
     var off = Math.max(0, pos - (visibleW - w) / 2); off = Math.min(off, Math.max(0, total - visibleW));
     inner.style.transform = 'translateX(' + (rtl ? off : -off) + 'px)';
     var rIdx = Array.prototype.indexOf.call(rows.children, rowEl), top = 0; for (var i = 0; i < rIdx; i++) top += rows.children[i].offsetHeight + 34;
-    // Home: while browsing rows below the first one, collapse the hero so rows never slide over it
     var sec = rows.parentNode; if (sec && sec.id === 'sec-home') sec.classList.toggle('rows-mode', rIdx > 0);
     rows.style.transform = 'translateY(-' + top + 'px)';
   }
@@ -114,7 +112,7 @@ var UI = (function () {
     grid.style.transform = 'translateY(-' + off + 'px)';
   }
 
-  /* ---- category & channel lists (virtualized) ---- */
+  /* ---- category & channel lists ---- */
   var CAT_ICONS = {
     all: '<svg viewBox="0 0 24 24"><path d="M4 5h16v3H4zm0 5.5h16v3H4zM4 16h16v3H4z"/></svg>',
     sport: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c1.6 0 3.1.5 4.3 1.3L12 8.6 7.7 5.3A8 8 0 0 1 12 4zM4 12c0-1.7.5-3.2 1.4-4.5L9 10l-1.6 5.3-3-.6A8 8 0 0 1 4 12zm8 8a8 8 0 0 1-5.4-2.1l2.9-1.5H14.5l2.9 1.5A8 8 0 0 1 12 20zm4.6-4.7L15 10l3.6-2.5A8 8 0 0 1 20 12c0 1 0 1.7-.4 2.7l-3 .6z"/></svg>',
@@ -186,11 +184,10 @@ var UI = (function () {
     vl.cols = cols; vl.render = function (it) { return card(it, { list: list, nav: nav, noClick: true }); }; vl.onSelect = function (it) { onOpen(it, list); };
     vl.setItems(list); return vl;
   }
-  /* lazy background images: only load when the element is created (visible window) with a tiny delay to skip fast scrolling */
+  
   var lazyQueue = [], lazyTimer = null;
   function lazyBg(el) {
     var src = el.getAttribute('data-src');
-    // v1.5: always reset first so a reused node never shows the previous item's artwork
     el.style.backgroundImage = ''; el.classList.remove('loaded');
     if (!src) return;
     lazyQueue.push(el); if (lazyTimer) return;
@@ -213,7 +210,7 @@ var UI = (function () {
     list.slice(0, 12).forEach(function (e) { el.appendChild(U.el('div', 'epg-row' + (e === cur ? ' live' : ''), '<span class="t">' + U.hm(e.start) + ' – ' + U.hm(e.end) + '</span><span>' + U.esc(e.title) + '</span>')); });
   }
 
-  /* ---- details (v1.5 cinematic) ---- */
+  /* ---- details ---- */
   function initials(n) { return String(n || '?').split(' ').slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join(''); }
   function renderDetails(info, base) {
     var poster = info.poster || base.poster || '', bg = info.backdrop || base.backdrop || poster;
@@ -238,7 +235,7 @@ var UI = (function () {
     U.$('#details-meta').innerHTML = chips.join('');
     U.$('#details-tagline').textContent = info.tagline || '';
     U.$('#details-plot').textContent = info.plot || '';
-    // cast avatars (TMDB) or names from the playlist
+    
     var castEl = U.$('#details-cast'); castEl.innerHTML = '';
     var cl = info.castList || (info.cast ? String(info.cast).split(',').slice(0, 8).map(function (n) { return { name: n.trim(), role: '', img: '' }; }) : []);
     cl.filter(function (c) { return c.name; }).slice(0, 8).forEach(function (c) {
