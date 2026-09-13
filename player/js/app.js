@@ -1,10 +1,17 @@
-/* RGBTv — Controller Principal (v1.3 - Restauration du Lecteur Video) */
+/* RGBTv — Controller Principal (v2.0 - Auto-Login Xtream Direct) */
 var App = (function () {
+  // CONFIGURATION DES IDENTIFIANTS DIRECTS / HARDCODÉS
+  var DIRECT_CONFIG = {
+    url: window.location.origin, // Utilise le domaine G-PANEL Vercel
+    username: 'zohir',           // Ton utilisateur Xtream / G-PANEL
+    password: '123',          // Ton mot de passe Xtream / G-PANEL
+    name: 'G-PANEL TV'
+  };
+
   var screen = 'splash', section = 'home', account = null, provider = null;
   var live = { cats: [], catId: null, list: [], selected: null };
   var movies = { cats: [], catId: null, list: [] }, series = { cats: [], catId: null, list: [] };
   var details = { base: null, info: null, season: null, list: null };
-  var manageMode = false;
 
   function showScreen(name) {
     screen = name;
@@ -35,138 +42,48 @@ var App = (function () {
     document.body.setAttribute('data-theme', s.theme || 'aurora');
   }
 
+  /* ---------- DEMARRAGE AUTOMATIQUE (AUTO-LOGIN DIRECT) ---------- */
   function init() {
     applyTheme(); 
     Player.init();
     Player.setOnEnded(onPlaybackEnded);
     bindEvents();
     
-    var last = Store.lastAccount();
-    setTimeout(function () { 
-      if (last && Store.getAccount(last)) {
-        openAccount(last).catch(function() { showAccounts(); });
-      } else {
-        showAccounts(); 
-      }
-    }, 500);
+    // Lancement automatique sans afficher de sélection de profil
+    startDirectLogin();
   }
 
-  /* ---------- PROFILES & LOGIN G-PANEL ---------- */
-  function showAccounts(keepManage) {
-    if (provider && provider.destroy) provider.destroy();
-    provider = null; account = null; App.account = null; App.provider = null;
-    var list = Store.accounts();
-
-    if (!list || list.length === 0) {
-      showScreen('accounts');
-      var wrap = U.$('#screen-accounts .acc-wrap');
-      if (wrap) {
-        wrap.style.padding = '0';
-        wrap.innerHTML = `
-          <style>
-            .netflix-login-box {
-              background: rgba(0, 0, 0, 0.85); padding: 45px 35px; border-radius: 8px;
-              width: 90%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);
-              border: 1px solid rgba(255,255,255,0.1); margin: 0 auto; text-align: left;
-            }
-            .netflix-login-box h2 { color: #fff; font-size: 26px; margin-bottom: 20px; font-weight: 700; }
-            .netflix-input-group { margin-bottom: 16px; }
-            .netflix-input-group input {
-              width: 100%; padding: 14px; border-radius: 4px; border: 1px solid #333;
-              background: #333; color: #fff; font-size: 15px; outline: none; box-sizing: border-box;
-            }
-            .netflix-btn-submit {
-              width: 100%; padding: 14px; border-radius: 4px; border: none;
-              background: #e50914; color: #fff; font-size: 16px; font-weight: bold;
-              cursor: pointer; margin-top: 15px; transition: background 0.2s;
-            }
-            .netflix-btn-submit:disabled { background: #555; cursor: not-allowed; }
-            .netflix-error-msg { color: #e50914; font-size: 14px; margin-top: 12px; display: none; line-height: 1.4; }
-          </style>
-          <div class="netflix-login-box">
-            <div class="brand sm" style="margin-bottom: 25px; font-size: 30px;">RGB<span style="color:#e50914">Tv</span></div>
-            <h2>Sign In</h2>
-            <form id="netflix-form" autocomplete="off">
-              <div class="netflix-input-group">
-                <input type="text" id="net_user" placeholder="Username" required autofocus>
-              </div>
-              <div class="netflix-input-group">
-                <input type="password" id="net_pass" placeholder="Password" required>
-              </div>
-              <button type="submit" class="netflix-btn-submit">Sign In</button>
-              <div id="net_err" class="netflix-error-msg"></div>
-            </form>
-          </div>
-        `;
-
-        document.getElementById('netflix-form').addEventListener('submit', function (e) {
-          e.preventDefault();
-          var btn = this.querySelector('button[type="submit"]');
-          var errDiv = document.getElementById('net_err');
-          var u = document.getElementById('net_user').value.trim();
-          var p = document.getElementById('net_pass').value.trim();
-          if (!u || !p) return;
-
-          btn.disabled = true;
-          btn.textContent = 'Connexion...';
-          if (errDiv) errDiv.style.display = 'none';
-
-          var profile = {
-            id: 'xtream_' + Date.now(),
-            name: u,
-            type: 'xtream',
-            url: window.location.origin,
-            username: u,
-            password: p,
-            avatar: 'img/largeIcon.png',
-            created: Date.now()
-          };
-
-          Store.addAccount(profile);
-
-          openAccount(profile.id, true).catch(function (err) {
-            Store.removeAccount(profile.id);
-            btn.disabled = false;
-            btn.textContent = 'Sign In';
-            if (errDiv) {
-              errDiv.textContent = 'Connexion échouée : ' + (err.message || 'Serveur G-PANEL injoignable');
-              errDiv.style.display = 'block';
-            }
-          });
-        });
-      }
-      return;
-    }
-
-    UI.renderAccounts(list, manageMode); 
-    showScreen('accounts');
-  }
-
-  function openAccount(id, skipPin) {
-    var acc = Store.getAccount(id); 
-    if (!acc) return Promise.reject(new Error('Profil introuvable'));
-
+  function startDirectLogin() {
     showScreen('splash');
-    U.$('#splash-status').textContent = 'Connexion à ' + acc.name + '...';
-    var p = new XtreamProvider(acc);
+    U.$('#splash-status').textContent = 'Connexion automatique au serveur...';
 
-    return p.login().then(function (info) {
-      acc.lastLogin = Date.now();
-      Store.updateAccount(acc); 
-      Store.setLastAccount(acc.id);
-      account = acc; provider = p; App.account = acc; App.provider = p;
-      
-      U.$('#chip-name').textContent = acc.name;
+    // Création automatique du compte d'accès direct
+    account = {
+      id: 'xtream_direct',
+      name: DIRECT_CONFIG.name,
+      type: 'xtream',
+      url: DIRECT_CONFIG.url,
+      username: DIRECT_CONFIG.username,
+      password: DIRECT_CONFIG.password,
+      avatar: 'img/largeIcon.png'
+    };
+
+    provider = new XtreamProvider(account);
+    App.account = account;
+    App.provider = provider;
+
+    // Connexion brute directe
+    provider.login().then(function (info) {
+      U.$('#chip-name').textContent = account.name;
       showScreen('home'); 
       showSection('home');
-      return true;
     }).catch(function (e) {
-      showAccounts();
-      throw e;
+      U.$('#splash-status').textContent = 'Erreur de connexion : ' + (e.message || 'Serveur injoignable');
+      console.error('Erreur Xtream Direct:', e);
     });
   }
 
-  /* ---------- NAVIGATION CONTENT ---------- */
+  /* ---------- NAVIGATION & CONTENU ---------- */
   function renderHome() {
     var rows = U.$('#home-rows'); 
     rows.innerHTML = '';
@@ -180,8 +97,8 @@ var App = (function () {
       var vods = res[0] || [];
       var lives = res[1] || [];
 
-      if (lives.length) rows.appendChild(UI.row('Chaînes TV Direct', lives.slice(0, 15)));
-      if (vods.length) rows.appendChild(UI.row('Derniers Films', vods.slice(0, 15)));
+      if (lives.length) rows.appendChild(UI.row('Chaînes TV Direct', lives.slice(0, 20)));
+      if (vods.length) rows.appendChild(UI.row('Derniers Films', vods.slice(0, 20)));
     });
   }
 
@@ -222,8 +139,8 @@ var App = (function () {
   function renderFavorites() { }
   function renderSettings() { }
 
-  /* ---------- GESTION DE LA LECTURE VIDEO (PLAYER) ---------- */
-  function openItem(it, list) {
+  /* ---------- LECTURE VIDEO DIRECTE ---------- */
+  function openItem(it) {
     if (!it) return;
     if (it.type === 'live') {
       playLive(it, 0);
@@ -300,5 +217,5 @@ var App = (function () {
   }
 
   window.addEventListener('load', init);
-  return { openAccount: openAccount, showAccounts: showAccounts, openItem: openItem, closePlayer: closePlayer };
+  return { openItem: openItem, closePlayer: closePlayer };
 })();
