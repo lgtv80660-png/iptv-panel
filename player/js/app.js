@@ -36,7 +36,6 @@ var App = (function () {
   function hexRgba(hex, a) { var n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')'; }
   function applyTheme() {
     var s = Store.settings(); document.body.setAttribute('data-theme', s.theme || 'aurora');
-    // accent override: written as inline custom properties on <body> so it wins over the theme rules
     var st = document.body.style, hex = ACCENTS[s.accent];
     ['--accent', '--fglow', '--glowc', '--glow1'].forEach(function (v) { st.removeProperty(v); });
     if (hex) { st.setProperty('--accent', hex); st.setProperty('--fglow', hexRgba(hex, .6)); st.setProperty('--glowc', hexRgba(hex, .6)); st.setProperty('--glow1', hexRgba(hex, .34)); }
@@ -47,7 +46,7 @@ var App = (function () {
     var s = Store.settings();
     document.body.setAttribute('data-focus', s.focusStyle || 'glow'); document.body.classList.toggle('large', !!s.largeUi);
     U.$('#sec-home').setAttribute('data-layout', s.layout || 'classic');
-    document.body.classList.toggle('hubmode', isHub(s.layout)); // hub styles: no top menu on Home, breadcrumb "Home ›" elsewhere
+    document.body.classList.toggle('hubmode', isHub(s.layout));
     Nav.setPointerMode(s.pointer || 'click');
   }
   function tickClock() {
@@ -152,40 +151,45 @@ var App = (function () {
     U.$('#add-title').textContent = acc ? 'Edit Profile' : 'Add Profile';
     addAvatar = acc ? (acc.avatar || 'red') : Avatars.list()[Store.accounts().length % Avatars.list().length];
     UI.renderAvatarPicker(addAvatar, function (id) { addAvatar = id; });
-    setAddType(acc ? acc.type : 'xtream');
+    setAddType('xtream');
     U.$('#kids-switch').setAttribute('data-on', acc && acc.kids ? '1' : '0');
-    if (acc) { ['name', 'url', 'username', 'password', 'mac', 'sn', 'deviceId', 'epg', 'pin'].forEach(function (k) { if (f[k]) f[k].value = acc[k] || ''; }); }
-    else { f.mac.value = Store.device().mac; }
+    
+    // URL pré-remplie par défaut si création d'un profil
+    var defaultUrl = 'http://votre-serveur.com:8080';
+    
+    if (acc) { 
+      ['name', 'username', 'password', 'pin'].forEach(function (k) { if (f[k]) f[k].value = acc[k] || ''; }); 
+      if (f.url) f.url.value = acc.url || defaultUrl;
+    } else { 
+      if (f.url) f.url.value = defaultUrl;
+      if (f.mac) f.mac.value = Store.device().mac; 
+    }
     showScreen('add'); Nav.focus(f.name);
   }
   function setAddType(t) {
-    addType = t;
-    U.$$('#add-type-tabs .tab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-type') === t); });
-    U.$$('.type-fields').forEach(function (d) { d.classList.toggle('show', d.getAttribute('data-for').split(' ').indexOf(t) >= 0); });
-    U.$('#lbl-url').textContent = t === 'xtream' ? 'Server URL (http://host:port) — or paste a get.php link' : t === 'stalker' ? 'Portal URL (http://host/c/)' : 'Playlist URL (.m3u / .m3u8)';
+    addType = 'xtream';
+    U.$$('#add-type-tabs .tab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-type') === 'xtream'); });
+    U.$$('.type-fields').forEach(function (d) { d.classList.toggle('show', d.getAttribute('data-for').split(' ').indexOf('xtream') >= 0); });
+    U.$('#lbl-url').textContent = 'Server URL (http://host:port)';
   }
   function saveAccount(ev) {
     ev.preventDefault(); var f = U.$('#add-form'), err = U.$('#add-error');
-    var acc = { id: editingId || undefined, type: addType, name: f.name.value.trim(), url: f.url.value.trim(), avatar: addAvatar, pin: f.pin.value.trim(), kids: U.$('#kids-switch').getAttribute('data-on') === '1' };
+    var acc = { id: editingId || undefined, type: 'xtream', name: f.name.value.trim(), url: f.url.value.trim(), avatar: addAvatar, pin: f.pin.value.trim(), kids: U.$('#kids-switch').getAttribute('data-on') === '1' };
     if (!acc.name || !acc.url) { err.textContent = 'Name and URL are required.'; return; }
     if (acc.pin && !/^\d{4}$/.test(acc.pin)) { err.textContent = 'PIN must be exactly 4 digits.'; return; }
-    if (addType === 'xtream') {
-      var m = acc.url.match(/^(https?:\/\/[^\/]+)\/.*[?&]username=([^&]+)&password=([^&]+)/i);
-      if (m) { acc.url = m[1]; f.username.value = decodeURIComponent(m[2]); f.password.value = decodeURIComponent(m[3]); }
-      acc.username = f.username.value.trim(); acc.password = f.password.value.trim();
-      if (!acc.username || !acc.password) { err.textContent = 'Username and password are required.'; return; }
-    } else if (addType === 'stalker') {
-      acc.mac = f.mac.value.trim().toUpperCase().replace(/-/g, ':'); acc.sn = f.sn.value.trim(); acc.deviceId = f.deviceId.value.trim();
-      if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(acc.mac)) { err.textContent = 'Invalid MAC address (format 00:1A:79:XX:XX:XX).'; return; }
-      acc.token = null; acc.endpoint = null;
-    } else acc.epg = f.epg.value.trim();
+    
+    var m = acc.url.match(/^(https?:\/\/[^\/]+)\/.*[?&]username=([^&]+)&password=([^&]+)/i);
+    if (m) { acc.url = m[1]; f.username.value = decodeURIComponent(m[2]); f.password.value = decodeURIComponent(m[3]); }
+    acc.username = f.username.value.trim(); acc.password = f.password.value.trim();
+    if (!acc.username || !acc.password) { err.textContent = 'Username and password are required.'; return; }
+
     if (editingId) { var old = Store.getAccount(editingId); for (var k in acc) old[k] = acc[k]; Store.updateAccount(old); Store.clearCache(editingId); acc = old; }
     else acc = Store.addAccount(acc);
     manageMode = false; openAccount(acc.id, true);
   }
   function accountMenu(id) {
     var acc = Store.getAccount(id); if (!acc) return;
-    UI.modal(acc.name, acc.type.toUpperCase() + ' · ' + U.esc(acc.url) + (acc.pin ? ' · PIN protected' : '') + (acc.kids ? ' · Kids' : ''), [{ label: 'Connect', value: 'open' }, { label: 'Edit', value: 'edit', ghost: true }, { label: 'Delete', value: 'del', danger: true }, { label: 'Cancel', value: null, ghost: true }]).then(function (v) {
+    UI.modal(acc.name, 'XTREAM CODES · ' + U.esc(acc.url) + (acc.pin ? ' · PIN protected' : '') + (acc.kids ? ' · Kids' : ''), [{ label: 'Connect', value: 'open' }, { label: 'Edit', value: 'edit', ghost: true }, { label: 'Delete', value: 'del', danger: true }, { label: 'Cancel', value: null, ghost: true }]).then(function (v) {
       if (v === 'open') { manageMode = false; openAccount(id); } else if (v === 'edit') requirePin(acc).then(function (ok) { if (ok) showAddForm(acc); });
       else if (v === 'del') UI.modal('Delete profile?', 'This removes "' + U.esc(acc.name) + '" with its favorites and history.', [{ label: 'Delete', value: true, danger: true }, { label: 'Cancel', value: false, ghost: true }]).then(function (ok) { if (ok) { Store.removeAccount(id); showAccounts(true); } });
     });
@@ -194,7 +198,6 @@ var App = (function () {
   /* ---------- Add from phone (QR pairing via the Luna service HTTP server) ---------- */
   var pair = { timer: null, on: false, from: null };
   function pairCall(method, params) {
-    // in a desktop browser (dev) the mock server exposes the same endpoints over HTTP
     if (window.RGBTvDesktop && RGBTvDesktop.pair) return RGBTvDesktop.pair(method, params || {}).then(function (r) { if (r && r.returnValue === false) throw new Error(r.errorText || 'pair failed'); return r; });
     if (typeof window.PalmServiceBridge === 'undefined') return U.getJSON('/__pair/' + method + '?' + U.qs(params || {}));
     return U.luna(method, params || {});
@@ -220,10 +223,8 @@ var App = (function () {
     if (!pair.on) { clearInterval(pair.timer); return; }
     pairCall('pairPoll', {}).then(function (r) {
       var items = (r && r.items) || []; if (!items.length) return;
-      var d = items[items.length - 1], acc = { type: /^(xtream|stalker|m3u)$/.test(d.type) ? d.type : 'xtream', name: String(d.name || '').trim().slice(0, 40), url: String(d.url || '').trim(), avatar: Avatars.list()[Store.accounts().length % Avatars.list().length], pin: /^\d{4}$/.test(d.pin || '') ? d.pin : '', kids: false };
-      if (acc.type === 'xtream') { var m = acc.url.match(/^(https?:\/\/[^\/]+)\/.*[?&]username=([^&]+)&password=([^&]+)/i); if (m) { acc.url = m[1]; acc.username = decodeURIComponent(m[2]); acc.password = decodeURIComponent(m[3]); } else { acc.username = String(d.username || '').trim(); acc.password = String(d.password || '').trim(); } }
-      else if (acc.type === 'stalker') { acc.mac = String(d.mac || '').trim().toUpperCase().replace(/-/g, ':') || Store.device().mac; acc.token = null; acc.endpoint = null; }
-      else acc.epg = String(d.epg || '').trim();
+      var d = items[items.length - 1], acc = { type: 'xtream', name: String(d.name || '').trim().slice(0, 40), url: String(d.url || '').trim(), avatar: Avatars.list()[Store.accounts().length % Avatars.list().length], pin: /^\d{4}$/.test(d.pin || '') ? d.pin : '', kids: false };
+      var m = acc.url.match(/^(https?:\/\/[^\/]+)\/.*[?&]username=([^&]+)&password=([^&]+)/i); if (m) { acc.url = m[1]; acc.username = decodeURIComponent(m[2]); acc.password = decodeURIComponent(m[3]); } else { acc.username = String(d.username || '').trim(); acc.password = String(d.password || '').trim(); }
       if (!/^https?:\/\//i.test(acc.url)) acc.url = 'http://' + acc.url;
       U.$('#pair-status').className = 'pair-status ok'; U.$('#pair-status-text').textContent = T('pair.received', { n: acc.name });
       acc = Store.addAccount(acc); UI.toast(T('pair.received', { n: acc.name }), 3000, '📱');
@@ -256,7 +257,6 @@ var App = (function () {
   function scheduleRefresh() {
     clearInterval(refreshTimer); var h = Store.settings().refreshHours; if (!h || !account) return;
     refreshTimer = setInterval(function () { if (screen === 'home' && !UI.modalOpen()) refreshPlaylists(false); }, h * 3600e3);
-    // first snapshot (silent) so later diffs make sense
     if (!Store.snapshot(account.id)) setTimeout(function firstSnap() { if (screen === 'player' || live.previewVideo) { setTimeout(firstSnap, 60000); return; } refreshPlaylists(false, true); }, 180000);
   }
   function ids(list) { var m = {}; for (var i = 0; i < list.length; i++) m[list[i].id] = 1; return m; }
@@ -264,7 +264,6 @@ var App = (function () {
     if (!account || !provider) return; if (refreshPlaylists._busy) return; if (!manual && screen === 'player') return; refreshPlaylists._busy = true;
     if (manual) UI.toast(T('toast.refreshing'), 2500, '↻');
     var prev = Store.snapshot(account.id), acc = account;
-    // drop caches so the provider re-downloads
     if (!(silent && !prev)) { Store.clearCache(acc.id); if (provider._mem) provider._mem = {}; if (provider._pending) provider._pending = {}; }
     Promise.all([provider.liveStreams().catch(function () { return null; }), provider.vodStreams().catch(function () { return null; }), provider.seriesList().catch(function () { return null; })]).then(function (r) {
       refreshPlaylists._busy = false; if (account !== acc) return;
@@ -312,7 +311,6 @@ var App = (function () {
     function byAdded(a, b) { return (b.added || 0) - (a.added || 0); }
     function byRating(a, b) { return (Number(b.rating) || 0) - (Number(a.rating) || 0); }
     var heroPool = [];
-    // sequential background loading keeps the TV responsive
     provider.vodStreams().catch(function () { return []; }).then(function (m) {
       if (!alive()) return; var bad = adultCatIds(); m = m.filter(function (x) { return !bad[x.catId]; });
       var latest = m.slice().sort(byAdded).slice(0, 30);
@@ -332,7 +330,8 @@ var App = (function () {
       if (!rows.children.length) rows.appendChild(U.el('div', 'empty', T('home.empty')));
     });
   }
-  /* ---- Hub layouts (VIU-style / IBO-style) ---- */
+  
+  /* ---- Hub layouts ---- */
   var HUB_ICONS = {
     live: '<svg viewBox="0 0 24 24"><path d="M3 5h18v12H3zm5 14h8v2H8z"/><path d="M10 8.5v5l4.5-2.5z" fill="#0b0f19"/></svg>',
     movies: '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zm2 2v2h2V6zm0 4v2h2v-2zm0 4v2h2v-2zm10-8v2h2V6zm0 4v2h2v-2zm0 4v2h2v-2zM10 6v12h4V6z"/></svg>',
@@ -379,20 +378,20 @@ var App = (function () {
     }
     function infoBar() {
       var info = U.el('div', 'hub-info');
-      info.innerHTML = '<div><div class="hi-time" id="hub-time">' + U.clock() + '</div><div class="hi-date" id="hub-date"></div></div><div class="hi-acc">' + U.esc(T('hub.account')) + ': <b>' + U.esc(account.name) + '</b> · ' + account.type.toUpperCase() + '<br>' + U.esc(T('hub.expires')) + ': <b class="' + (ex ? ex.cls : 'ok') + '">' + U.esc(ex ? ex.text : T('exp.unlimited')) + '</b>' + (ex && account.expires ? ' (' + new Date(account.expires).toLocaleDateString() + ')' : '') + '</div>';
+      info.innerHTML = '<div><div class="hi-time" id="hub-time">' + U.clock() + '</div><div class="hi-date" id="hub-date"></div></div><div class="hi-acc">' + U.esc(T('hub.account')) + ': <b>' + U.esc(account.name) + '</b> · XTREAM CODES<br>' + U.esc(T('hub.expires')) + ': <b class="' + (ex ? ex.cls : 'ok') + '">' + U.esc(ex ? ex.text : T('exp.unlimited')) + '</b>' + (ex && account.expires ? ' (' + new Date(account.expires).toLocaleDateString() + ')' : '') + '</div>';
       tickHubClock(); clearInterval(hero.clockTimer); hero.clockTimer = setInterval(tickHubClock, 15000); return info;
     }
     var main = U.el('div', 'hub-main'), st;
-    if (lay === 'spotlight') {            // one big Live tile + 2x2 grid, continue-watching strip
+    if (lay === 'spotlight') {
       tLive.classList.add('big'); main.appendChild(tLive); var g = U.el('div', 'tile-grid'); [tMov, tSer, tFav, tGuide].forEach(function (t) { g.appendChild(t); }); main.appendChild(g);
       hub.appendChild(main); hub.appendChild(utilBar()); st = strip(); if (st) hub.appendChild(st);
-    } else if (lay === 'trio') {          // three tall tiles + utility bar + info bar
+    } else if (lay === 'trio') {
       [tLive, tMov, tSer].forEach(function (t) { main.appendChild(t); }); hub.appendChild(main);
       hub.appendChild(utilBar(['favorites', 'adhan'])); hub.appendChild(infoBar());
-    } else if (lay === 'mosaic') {        // 4x2 mosaic of equal tiles — every section one press away
+    } else if (lay === 'mosaic') {
       [tLive, tMov, tSer, tFav, tGuide, tWx, tSearch, tSet].forEach(function (t) { main.appendChild(t); }); hub.appendChild(main);
       var ib = infoBar(); ib.classList.add('slim'); hub.appendChild(ib);
-    } else {                              // dashboard: greeting + clock on the left, tiles on the right, strip below
+    } else {
       var side = U.el('div', 'hub-side');
       side.innerHTML = '<div class="hs-hello">' + U.esc(T('hub.hello')) + '</div><div class="hs-name">' + U.esc(account.name) + '</div><div class="hs-time" id="hub-time"></div><div class="hs-date" id="hub-date"></div><div class="hs-exp ' + (ex ? ex.cls : 'ok') + '">' + U.esc(T('hub.expires')) + ': ' + U.esc(ex ? ex.text : T('exp.unlimited')) + '</div>';
       var sideBtns = U.el('div', 'hs-btns'); sideBtns.appendChild(hubUtil('search', T('hub.search'))); sideBtns.appendChild(hubUtil('weather', T('hub.weather'))); sideBtns.appendChild(hubUtil('settings', T('hub.settings'))); sideBtns.appendChild(hubUtil('profiles', T('hub.profiles'), 'switch-account')); sideBtns.appendChild(hubUtil('refresh', T('hub.refresh'), 'refresh-now')); side.classList.add('five'); side.appendChild(sideBtns);
@@ -401,7 +400,6 @@ var App = (function () {
       tickHubClock(); clearInterval(hero.clockTimer); hero.clockTimer = setInterval(tickHubClock, 15000);
     }
     if (!Nav.current() || !Nav.visible(Nav.current())) Nav.focus(tLive);
-    // counts + artwork (cached lists -> cheap)
     var token = renderHub._t = (renderHub._t || 0) + 1; function alive() { return renderHub._t === token && section === 'home' && account && document.body.contains(hub); }
     var bad = adultCatIds();
     provider.liveStreams().catch(function () { return []; }).then(function (lv) {
@@ -427,8 +425,8 @@ var App = (function () {
   /* ---- hero carousel ---- */
   function setHeroWelcome() {
     var titleEl = U.$('#hero-title'); titleEl._item = null; titleEl.textContent = T('home.welcome', { name: account.name });
-    U.$('#hero-desc').textContent = T('home.tagline', { src: account.type === 'xtream' ? 'Xtream Codes' : account.type === 'stalker' ? 'Stalker Portal' : 'M3U' });
-    U.$('#hero-tag').textContent = account.type.toUpperCase(); U.$('#hero-meta').innerHTML = '';
+    U.$('#hero-desc').textContent = T('home.tagline', { src: 'Xtream Codes' });
+    U.$('#hero-tag').textContent = 'XTREAM'; U.$('#hero-meta').innerHTML = '';
     U.$('#hero-bg').style.backgroundImage = ''; U.$('#hero').classList.add('plain'); U.$('#hero-poster').classList.remove('show'); U.$('#hero-dots').innerHTML = '';
     tickHeroClock(); clearInterval(hero.clockTimer); hero.clockTimer = setInterval(tickHeroClock, 15000);
   }
@@ -458,7 +456,8 @@ var App = (function () {
     TMDB.enrich(h).then(function (it) { if (titleEl._item === it && it.tmdbId) setHeroStatic(it, tag); });
   }
   function setHeroStatic(h, tag) { var t = U.$('#hero-title'); t.textContent = TMDB.cleanTitle(h.name); U.$('#hero-desc').textContent = h.plot || ''; if (h.backdrop) U.$('#hero-bg').style.backgroundImage = 'url("' + h.backdrop + '")'; var meta = []; if (h.year) meta.push(String(h.year).substr(0, 4)); if (h.rating) meta.push('★ ' + Number(h.rating).toFixed(1)); if (h.genre) meta.push(h.genre); if (h.duration) meta.push(h.duration); U.$('#hero-meta').innerHTML = meta.map(function (x) { return '<span>' + U.esc(x) + '</span>'; }).join(''); }
-  /* ---- "On Now" row: favourite channels with live EPG progress ---- */
+
+  /* ---- "On Now" row ---- */
   function onNowRow(chs) {
     var r = U.el('div', 'row'); r.innerHTML = '<div class="row-title">' + U.esc(T('home.onNow')) + '<span class="live-dot"></span><span class="count">' + chs.length + '</span></div>';
     var inner = U.el('div', 'row-items'); r.appendChild(inner); r._inner = inner;
@@ -517,9 +516,6 @@ var App = (function () {
     if (previewAllowed() && !needsUnlock(ch) && !Nav.byPointer()) live.previewTimer = setTimeout(function () { startPreview(ch); }, 1500);
     else if (provider.prefetchUrl && !needsUnlock(ch)) live.prefetchTimer = (clearTimeout(live.prefetchTimer), setTimeout(function () { if (live.selected === ch) provider.prefetchUrl(UI.toPlayable(ch)); }, 500));
   }
-  /* Preview opens a 2nd stream connection on the panel. Most subscriptions allow exactly 1: the preview then blocks the
-     real playback ("stream does not start" / immediate kick) and every hovered channel hammers the server.
-     auto = only when the account allows 2+ connections (or the provider does not tell us). */
   function previewAllowed() {
     var v = Store.settings().preview; if (v === 'off') return false; if (v === 'on') return true;
     return !(account && account.type === 'xtream' && account.maxConn === 1);
@@ -548,7 +544,7 @@ var App = (function () {
     if (live.vl) { var idx = live.vl.items.indexOf(ch); if (idx >= 0) live.vl.refreshItem(idx); }
     if (on && live.selected === ch) stopPreview();
   }
-  var unlocked = {}; // channel ids unlocked this session
+  var unlocked = {};
   function needsUnlock(ch) { return ch && ch.type === 'live' && Store.isLocked(account.id, ch.id) && !unlocked[ch.id]; }
   function askUnlock(ch) {
     return new Promise(function (resolve) {
@@ -567,7 +563,6 @@ var App = (function () {
     if (needsUnlock(ch)) { askUnlock(ch).then(function (ok) { if (ok) playLive(ch, i); }); return; }
     stopPreview(); playerReturn = { screen: 'home' }; Player.reset(); showScreen('player');
     var opts = { list: live.list.length ? live.list : [ch], index: i != null ? i : live.list.indexOf(ch) };
-    // give the panel a moment to release the preview connection before opening the real one (1-connection accounts)
     var settle = live.previewStoppedAt ? Math.max(0, 700 - (Date.now() - live.previewStoppedAt)) : 0;
     if (settle) { Player.showLoading(); setTimeout(function () { if (screen === 'player') Player.play(UI.toPlayable(ch), opts); }, settle); }
     else Player.play(UI.toPlayable(ch), opts);
@@ -655,7 +650,7 @@ var App = (function () {
     U.$('[data-setting="adhan"]').textContent = s.adhan ? T('on') : T('off');
     U.$('[data-setting="wxUnit"]').textContent = s.wxUnit === 'f' ? '°F' : '°C';
     U.$('[data-setting="autoNext"]').textContent = s.autoNext ? T('on') : T('off');
-    U.$('#settings-account-info').textContent = account.name + ' · ' + account.type.toUpperCase() + (account.expires ? ' · ' + (expiryText(account.expires).text) + ' (' + new Date(account.expires).toLocaleDateString() + ')' : '') + (account.kids ? ' · Kids profile' : '');
+    U.$('#settings-account-info').textContent = account.name + ' · XTREAM CODES' + (account.expires ? ' · ' + (expiryText(account.expires).text) + ' (' + new Date(account.expires).toLocaleDateString() + ')' : '') + (account.kids ? ' · Kids profile' : '');
     if (!Nav.current() || !Nav.visible(Nav.current())) Nav.focus(U.$('[data-setting="lang"]'));
   }
   function toggleSetting(k) {
@@ -692,7 +687,6 @@ var App = (function () {
     UI.renderDetails(it, it);
     var resume = Store.getPos(account.id, 'movie:' + it.id); U.$('#details-resume').style.display = (it.type === 'movie' && resume) ? '' : 'none';
     if (resume) U.$('#details-resume').textContent = T('det.resume', { t: U.fmtTime(resume.pos) });
-    // "More like this": same category (or same list), excluding the item itself
     var simSrc = (it.type === 'movie' ? provider.vodStreams(it.catId || null) : provider.seriesList(it.catId || null));
     Promise.resolve(simSrc).catch(function () { return list || []; }).then(function (l) {
       if (details.base !== it) return; var bad = adultCatIds(); l = (l || []).filter(function (x) { return x.id !== it.id && !bad[x.catId] && x.poster; });
@@ -734,7 +728,6 @@ var App = (function () {
   }
   function playTrailer() {
     var url = details.info && details.info.trailer; if (!url) return;
-    // webOS cannot play YouTube pages inside <video>; open with the system YouTube app via Luna if available.
     if (window.PalmServiceBridge) {
       var b = new PalmServiceBridge(); b.onservicecallback = function () { }; b.call('luna://com.webos.applicationManager/launch', JSON.stringify({ id: 'youtube.leanback.v4', params: { contentTarget: url } }));
     } else window.open(url, '_blank');
@@ -779,7 +772,7 @@ var App = (function () {
     moveSpot(el); noteActivity();
     if (screen === 'details') { var sd = U.$('#screen-details'); sd.classList.toggle('scrolled', scope === 'seasons' || scope === 'episodes' || scope === 'similar'); if (scope === 'similar' && el.classList.contains('card')) UI.scrollRowsTo(el); }
     if (el.classList.contains('card') && el.parentNode.classList.contains('row-items') && scope !== 'similar') UI.scrollRowsTo(el);
-    else if (el._vlist) { /* virtual lists manage their own scrolling */ }
+    else if (el._vlist) { }
     else if (scope === 'episodes') UI.scrollEpisodes(el);
     else if (scope === 'osd') Player.showOsd();
     else if (scope === 'wx' && el.classList.contains('wx-day')) Weather.scrollDays(el);
@@ -810,7 +803,6 @@ var App = (function () {
       if (screen === 'accounts') { if (manageMode) { manageMode = false; showAccounts(); return true; } UI.modal(T('exit.title'), T('exit.close'), [{ label: T('exit'), value: true, danger: true }, { label: T('cancel'), value: false, ghost: true }]).then(function (v) { if (v) exitApp(); }); return true; }
     }
     if (screen === 'home') {
-      // explicit vertical navigation between rows (rows scroll under the hero; geometry alone is unreliable)
       if ((name === 'UP' || name === 'DOWN') && Nav.current() && Nav.current().classList.contains('card') && Nav.current().parentNode.classList.contains('row-items')) {
         var curCard = Nav.current(), curRow = curCard.parentNode.parentNode, rowsEl = curRow.parentNode, rIdx = Array.prototype.indexOf.call(rowsEl.children, curRow);
         var target = null; for (var k = rIdx + (name === 'UP' ? -1 : 1); k >= 0 && k < rowsEl.children.length; k += (name === 'UP' ? -1 : 1)) { if (rowsEl.children[k].classList.contains('row') && rowsEl.children[k].querySelector('.card')) { target = rowsEl.children[k]; break; } }
@@ -835,7 +827,8 @@ var App = (function () {
     if (screen === 'details') U.$('[data-action="details-fav"]').textContent = on ? T('favorited') : T('favorite');
     if (live.vl) { var idx = live.vl.items.indexOf(it); if (idx >= 0) live.vl.refreshItem(idx); }
   }
-  /* ---------- ambient screensaver (5 min idle outside the player) ---------- */
+  
+  /* ---------- ambient screensaver ---------- */
   var amb = { last: Date.now(), on: false, timer: null, idx: 0, pool: [], flip: 0 };
   function noteActivity() { amb.last = Date.now(); if (amb.on) hideAmbient(); }
   function initAmbient() {
@@ -867,7 +860,7 @@ var App = (function () {
       var a = t.getAttribute('data-action'), sec = t.getAttribute('data-section'), typ = t.getAttribute('data-type'), set = t.getAttribute('data-setting');
       if (t.id === 'kids-switch') { t.setAttribute('data-on', t.getAttribute('data-on') === '1' ? '0' : '1'); return; }
       if (sec) { showSection(sec); if ((t.classList.contains('tile') || t.classList.contains('util')) && !document.body.classList.contains('hubmode')) Nav.focus(U.$('.nav-item[data-section="' + sec + '"]')); else if (t.id === 'hub-home') Nav.focus(U.$('#hub .tile')); return; }
-      if (typ && t.classList.contains('tab')) { setAddType(typ); return; }
+      if (typ && t.classList.contains('tab')) { setAddType('xtream'); return; }
       if (set) { toggleSetting(set); return; }
       var tp = t.getAttribute('data-theme-pick'); if (tp) { Store.setSetting('theme', tp); applyTheme(); renderSettings(); return; }
       var lp = t.getAttribute('data-layout-pick'); if (lp) { Store.setSetting('layout', lp); applyUi(); renderSettings(); UI.toast(T('lay.' + lp), 2000, '✓'); return; }
