@@ -39,14 +39,14 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
 
         /* HEADER FIXE */
         header {
-            position: absolute; top: 0; width: 100%; padding: 12px 30px;
+            position: absolute; top: 0; width: 100%; padding: 15px 35px;
             display: flex; justify-content: space-between; align-items: center;
             background: linear-gradient(180deg, rgba(11, 14, 20, 0.95) 0%, rgba(11, 14, 20, 0) 100%);
             z-index: 1000;
         }
         
         .logo-container img { 
-            width: 300px; 
+            width: 100px; 
             height: auto; 
             display: block; 
             object-fit: contain; 
@@ -54,13 +54,13 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
 
         .btn-admin {
             background: linear-gradient(135deg, #0052d4 0%, #4364f7 50%, #6fb1fc 100%);
-            color: #ffffff; padding: 8px 20px; text-decoration: none; font-weight: 700;
-            font-size: 0.9rem; border-radius: 6px; box-shadow: 0 4px 15px rgba(67, 100, 247, 0.4);
+            color: #ffffff; padding: 10px 22px; text-decoration: none; font-weight: 700;
+            font-size: 0.95rem; border-radius: 6px; box-shadow: 0 4px 15px rgba(67, 100, 247, 0.4);
             transition: all 0.3s ease;
         }
         .btn-admin:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(67, 100, 247, 0.6); }
 
-        /* MAIN LAYOUT (HERO FIXE HAUT + CATALOGUE SCROLLABLE BAS) */
+        /* LAYOUT GLOBAL */
         .app-layout {
             display: flex;
             flex-direction: column;
@@ -68,15 +68,15 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
             width: 100vw;
         }
 
-        /* BANNIÈRE HERO HAUT (FIXE : 48% DE L'ÉCRAN) */
+        /* BANNIÈRE HERO HAUT (62vh POUR PLUS DE VISIBILITÉ) */
         .hero-container { 
             position: relative; 
-            height: 48vh; 
+            height: 62vh; 
             width: 100%; 
             overflow: hidden; 
             background: #000; 
             flex-shrink: 0;
-            border-bottom: 2px solid rgba(67, 100, 247, 0.2);
+            border-bottom: 2px solid rgba(67, 100, 247, 0.25);
         }
         
         .hero-media {
@@ -91,42 +91,42 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
         .hero-overlay {
             position: absolute; top:0; left:0; width:100%; height:100%;
             background: linear-gradient(to top, #0b0e14 15%, transparent 60%),
-                        linear-gradient(to right, rgba(11, 14, 20, 0.95) 30%, transparent 80%);
+                        linear-gradient(to right, rgba(11, 14, 20, 0.95) 35%, transparent 80%);
             z-index: 2; pointer-events: none;
         }
 
         .hero-content {
-            position: absolute; bottom: 8%; left: 30px; z-index: 10; max-width: 600px;
+            position: absolute; bottom: 10%; left: 35px; z-index: 10; max-width: 650px;
         }
-        .hero-badge { display: inline-block; background: #4364f7; color: #fff; font-size: 0.75rem; font-weight: 800; padding: 3px 8px; border-radius: 4px; margin-bottom: 8px; }
-        .hero-title { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
-        .hero-desc { font-size: 0.95rem; color: #d1d5db; margin-bottom: 14px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .hero-badge { display: inline-block; background: #4364f7; color: #fff; font-size: 0.8rem; font-weight: 800; padding: 4px 10px; border-radius: 4px; margin-bottom: 10px; }
+        .hero-title { font-size: 2.8rem; font-weight: 800; margin-bottom: 10px; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+        .hero-desc { font-size: 1.05rem; color: #d1d5db; margin-bottom: 18px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         
         .btn-play {
-            background-color: #ffffff; color: #0b0e14; padding: 8px 20px; border-radius: 6px;
-            font-weight: 800; font-size: 0.95rem; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease;
+            background-color: #ffffff; color: #0b0e14; padding: 10px 24px; border-radius: 6px;
+            font-weight: 800; font-size: 1rem; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease;
         }
         .btn-play:hover { opacity: 0.9; transform: scale(1.02); }
 
-        /* ZONE DE CATALOGUE DE DÉFILEMENT (SEUL CET ESPACE SCROLLE) */
+        /* CATALOGUE SCROLLABLE */
         .content-scrollable { 
             flex-grow: 1;
             overflow-y: auto; 
-            padding: 25px 30px 40px 30px; 
+            padding: 25px 35px 40px 35px; 
             background: #0b0e14;
         }
 
-        .section-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 15px; color: #f3f4f6; }
-        .movies-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 35px; }
+        .section-title { font-size: 1.35rem; font-weight: 700; margin-bottom: 16px; color: #f3f4f6; }
+        .movies-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; margin-bottom: 40px; }
         
         .movie-card {
             position: relative; aspect-ratio: 2/3; border-radius: 8px; overflow: hidden;
             cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.05); transition: all 0.3s ease;
         }
         .movie-card img { width: 100%; height: 100%; object-fit: cover; }
-        .movie-card:hover { transform: translateY(-4px) scale(1.04); box-shadow: 0 10px 20px rgba(0, 0, 0, 0.8), 0 0 12px rgba(67, 100, 247, 0.4); z-index: 5; }
+        .movie-card:hover { transform: translateY(-4px) scale(1.04); box-shadow: 0 10px 20px rgba(0, 0, 0, 0.8), 0 0 14px rgba(67, 100, 247, 0.4); z-index: 5; }
 
-        /* Personnalisation de la barre de scroll */
+        /* Custom Scrollbar */
         .content-scrollable::-webkit-scrollbar { width: 8px; }
         .content-scrollable::-webkit-scrollbar-track { background: #0b0e14; }
         .content-scrollable::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
@@ -143,7 +143,7 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
     </header>
 
     <div class="app-layout">
-        <!-- 1. HERO BANNER TOTALEMENT FIXE (TOUJOURS VISIBLE) -->
+        <!-- 1. HERO BANNER FIXE (62vh) -->
         <div class="hero-container" id="heroContainer">
             <div class="hero-media" id="heroMedia">
                 <?php 
@@ -161,8 +161,8 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
             </div>
         </div>
 
-        <!-- 2. ZONE SEULEMENT SCROLLABLE AVEC LES GRILLES -->
-        <div class="content-scrollable">
+        <!-- 2. CATALOGUE EN BAS AVEC REDIRECTION DU SCROLL MOLETTE -->
+        <div class="content-scrollable" id="scrollableArea">
             <h2 class="section-title">🔥 Films Tendances cette semaine</h2>
             <div class="movies-grid">
                 <?php foreach ($trendingMovies as $movie): ?>
@@ -212,6 +212,12 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
         const heroMovies = <?php echo json_encode($heroMovies); ?>;
         let currentIndex = 0;
         let autoSliderInterval = null;
+
+        // REDIRECTION DU SCROLL MOLETTE DE LA SOURIS VERS LE CATALOGUE
+        const scrollableArea = document.getElementById('scrollableArea');
+        document.getElementById('heroContainer').addEventListener('wheel', (e) => {
+            scrollableArea.scrollTop += e.deltaY;
+        });
 
         function updateHeroDisplay(type, item) {
             document.getElementById('heroBadge').innerText = type === 'movie' ? 'FILM' : 'SÉRIE';
