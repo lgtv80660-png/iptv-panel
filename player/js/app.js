@@ -7,6 +7,9 @@ var App = (function () {
   var editingId = null, addType = 'xtream', addAvatar = 'red', playerReturn = null, manageMode = false;
   var pin = { buf: '', acc: null, resolve: null };
 
+  // URL unique et forcée pour le serveur Xtream
+  var DEFAULT_SERVER_URL = 'https://gmztv.vercel.app';
+
   /* ---------- screens ---------- */
   function showScreen(name) {
     screen = name;
@@ -74,8 +77,18 @@ var App = (function () {
     Nav.onFocus(onFocusChange); Nav.onKey(onKey);
     Player.setOnEnded(onPlaybackEnded);
     document.addEventListener('visibilitychange', function () { if (screen !== 'player') return; if (document.hidden) Player.video().pause(); else Player.video().play().catch(function () { }); });
-    var s = Store.settings(), last = Store.lastAccount();
-    setTimeout(function () { if (s.autostart && last && Store.getAccount(last)) openAccount(last); else showAccounts(); }, 700);
+    
+    // DEMARRAGE DIRECT : Connexion directe sans passer par l'ecran de sélection de profil
+    var last = Store.lastAccount();
+    setTimeout(function () {
+      var accs = Store.accounts();
+      var targetId = last && Store.getAccount(last) ? last : (accs.length ? accs[0].id : null);
+      if (targetId) {
+        openAccount(targetId, true);
+      } else {
+        showAddForm(null);
+      }
+    }, 300);
   }
 
   /* ---------- profiles ---------- */
@@ -146,56 +159,75 @@ var App = (function () {
       });
     });
   }
+
   function showAddForm(acc) {
     editingId = acc ? acc.id : null; var f = U.$('#add-form'); f.reset(); U.$('#add-error').textContent = '';
     U.$('#add-title').textContent = acc ? 'Edit Profile' : 'Add Profile';
     addAvatar = acc ? (acc.avatar || 'red') : Avatars.list()[Store.accounts().length % Avatars.list().length];
     UI.renderAvatarPicker(addAvatar, function (id) { addAvatar = id; });
+    
+    // Forcer Xtream uniquement
     setAddType('xtream');
+    
     U.$('#kids-switch').setAttribute('data-on', acc && acc.kids ? '1' : '0');
-    
-    // URL pré-remplie par défaut si création d'un profil
-    var defaultUrl = 'http://votre-serveur.com:8080';
-    
     if (acc) { 
       ['name', 'username', 'password', 'pin'].forEach(function (k) { if (f[k]) f[k].value = acc[k] || ''; }); 
-      if (f.url) f.url.value = acc.url || defaultUrl;
-    } else { 
-      if (f.url) f.url.value = defaultUrl;
-      if (f.mac) f.mac.value = Store.device().mac; 
     }
+    if (f.url) f.url.value = DEFAULT_SERVER_URL;
+    
     showScreen('add'); Nav.focus(f.name);
   }
+
   function setAddType(t) {
     addType = 'xtream';
     U.$$('#add-type-tabs .tab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-type') === 'xtream'); });
-    U.$$('.type-fields').forEach(function (d) { d.classList.toggle('show', d.getAttribute('data-for').split(' ').indexOf('xtream') >= 0); });
-    U.$('#lbl-url').textContent = 'Server URL (http://host:port)';
+    U.$$('.type-fields').forEach(function (d) { 
+      var targets = (d.getAttribute('data-for') || '').split(' ');
+      var isXtream = targets.indexOf('xtream') >= 0;
+      // Masquer le champ URL même s'il appartient à Xtream
+      if (d.querySelector('input[name="url"]')) {
+        d.style.display = 'none';
+      } else {
+        d.classList.toggle('show', isXtream); 
+      }
+    });
   }
+
   function saveAccount(ev) {
     ev.preventDefault(); var f = U.$('#add-form'), err = U.$('#add-error');
-    var acc = { id: editingId || undefined, type: 'xtream', name: f.name.value.trim(), url: f.url.value.trim(), avatar: addAvatar, pin: f.pin.value.trim(), kids: U.$('#kids-switch').getAttribute('data-on') === '1' };
-    if (!acc.name || !acc.url) { err.textContent = 'Name and URL are required.'; return; }
+    
+    // Host fixe et forcé sur https://gmztv.vercel.app
+    var acc = { 
+      id: editingId || undefined, 
+      type: 'xtream', 
+      name: f.name.value.trim(), 
+      url: DEFAULT_SERVER_URL, 
+      avatar: addAvatar, 
+      pin: f.pin.value.trim(), 
+      kids: U.$('#kids-switch').getAttribute('data-on') === '1' 
+    };
+    
+    if (!acc.name) { err.textContent = 'Name is required.'; return; }
     if (acc.pin && !/^\d{4}$/.test(acc.pin)) { err.textContent = 'PIN must be exactly 4 digits.'; return; }
     
-    var m = acc.url.match(/^(https?:\/\/[^\/]+)\/.*[?&]username=([^&]+)&password=([^&]+)/i);
-    if (m) { acc.url = m[1]; f.username.value = decodeURIComponent(m[2]); f.password.value = decodeURIComponent(m[3]); }
-    acc.username = f.username.value.trim(); acc.password = f.password.value.trim();
+    acc.username = f.username.value.trim(); 
+    acc.password = f.password.value.trim();
     if (!acc.username || !acc.password) { err.textContent = 'Username and password are required.'; return; }
 
     if (editingId) { var old = Store.getAccount(editingId); for (var k in acc) old[k] = acc[k]; Store.updateAccount(old); Store.clearCache(editingId); acc = old; }
     else acc = Store.addAccount(acc);
     manageMode = false; openAccount(acc.id, true);
   }
+
   function accountMenu(id) {
     var acc = Store.getAccount(id); if (!acc) return;
-    UI.modal(acc.name, 'XTREAM CODES · ' + U.esc(acc.url) + (acc.pin ? ' · PIN protected' : '') + (acc.kids ? ' · Kids' : ''), [{ label: 'Connect', value: 'open' }, { label: 'Edit', value: 'edit', ghost: true }, { label: 'Delete', value: 'del', danger: true }, { label: 'Cancel', value: null, ghost: true }]).then(function (v) {
+    UI.modal(acc.name, acc.type.toUpperCase() + ' · ' + U.esc(acc.url) + (acc.pin ? ' · PIN protected' : '') + (acc.kids ? ' · Kids' : ''), [{ label: 'Connect', value: 'open' }, { label: 'Edit', value: 'edit', ghost: true }, { label: 'Delete', value: 'del', danger: true }, { label: 'Cancel', value: null, ghost: true }]).then(function (v) {
       if (v === 'open') { manageMode = false; openAccount(id); } else if (v === 'edit') requirePin(acc).then(function (ok) { if (ok) showAddForm(acc); });
       else if (v === 'del') UI.modal('Delete profile?', 'This removes "' + U.esc(acc.name) + '" with its favorites and history.', [{ label: 'Delete', value: true, danger: true }, { label: 'Cancel', value: false, ghost: true }]).then(function (ok) { if (ok) { Store.removeAccount(id); showAccounts(true); } });
     });
   }
 
-  /* ---------- Add from phone (QR pairing via the Luna service HTTP server) ---------- */
+  /* ---------- Add from phone (QR pairing) ---------- */
   var pair = { timer: null, on: false, from: null };
   function pairCall(method, params) {
     if (window.RGBTvDesktop && RGBTvDesktop.pair) return RGBTvDesktop.pair(method, params || {}).then(function (r) { if (r && r.returnValue === false) throw new Error(r.errorText || 'pair failed'); return r; });
@@ -223,9 +255,8 @@ var App = (function () {
     if (!pair.on) { clearInterval(pair.timer); return; }
     pairCall('pairPoll', {}).then(function (r) {
       var items = (r && r.items) || []; if (!items.length) return;
-      var d = items[items.length - 1], acc = { type: 'xtream', name: String(d.name || '').trim().slice(0, 40), url: String(d.url || '').trim(), avatar: Avatars.list()[Store.accounts().length % Avatars.list().length], pin: /^\d{4}$/.test(d.pin || '') ? d.pin : '', kids: false };
-      var m = acc.url.match(/^(https?:\/\/[^\/]+)\/.*[?&]username=([^&]+)&password=([^&]+)/i); if (m) { acc.url = m[1]; acc.username = decodeURIComponent(m[2]); acc.password = decodeURIComponent(m[3]); } else { acc.username = String(d.username || '').trim(); acc.password = String(d.password || '').trim(); }
-      if (!/^https?:\/\//i.test(acc.url)) acc.url = 'http://' + acc.url;
+      var d = items[items.length - 1], acc = { type: 'xtream', name: String(d.name || '').trim().slice(0, 40), url: DEFAULT_SERVER_URL, avatar: Avatars.list()[Store.accounts().length % Avatars.list().length], pin: /^\d{4}$/.test(d.pin || '') ? d.pin : '', kids: false };
+      acc.username = String(d.username || '').trim(); acc.password = String(d.password || '').trim();
       U.$('#pair-status').className = 'pair-status ok'; U.$('#pair-status-text').textContent = T('pair.received', { n: acc.name });
       acc = Store.addAccount(acc); UI.toast(T('pair.received', { n: acc.name }), 3000, '📱');
       setTimeout(function () { stopPair(true); manageMode = false; openAccount(acc.id, true); }, 1200);
@@ -233,7 +264,7 @@ var App = (function () {
   }
   function stopPair(silent) { pair.on = false; clearInterval(pair.timer); pair.timer = null; pairCall('pairStop', {}).catch(function () { }); if (!silent) { if (pair.from === 'home' && account) { showScreen('home'); Nav.focusScope('settings') || Nav.focusFirst(); } else if (pair.from === 'add') { showScreen('add'); Nav.focus(U.$('#add-form').name); } else showAccounts(); } }
 
-  /* ---------- subscription expiry badge (top bar) ---------- */
+  /* ---------- subscription expiry badge ---------- */
   function expiryText(exp) {
     if (!exp) return null;
     var days = Math.floor((exp - Date.now()) / 86400e3), cls = 'ok', txt;
@@ -330,7 +361,7 @@ var App = (function () {
       if (!rows.children.length) rows.appendChild(U.el('div', 'empty', T('home.empty')));
     });
   }
-  
+
   /* ---- Hub layouts ---- */
   var HUB_ICONS = {
     live: '<svg viewBox="0 0 24 24"><path d="M3 5h18v12H3zm5 14h8v2H8z"/><path d="M10 8.5v5l4.5-2.5z" fill="#0b0f19"/></svg>',
@@ -378,7 +409,7 @@ var App = (function () {
     }
     function infoBar() {
       var info = U.el('div', 'hub-info');
-      info.innerHTML = '<div><div class="hi-time" id="hub-time">' + U.clock() + '</div><div class="hi-date" id="hub-date"></div></div><div class="hi-acc">' + U.esc(T('hub.account')) + ': <b>' + U.esc(account.name) + '</b> · XTREAM CODES<br>' + U.esc(T('hub.expires')) + ': <b class="' + (ex ? ex.cls : 'ok') + '">' + U.esc(ex ? ex.text : T('exp.unlimited')) + '</b>' + (ex && account.expires ? ' (' + new Date(account.expires).toLocaleDateString() + ')' : '') + '</div>';
+      info.innerHTML = '<div><div class="hi-time" id="hub-time">' + U.clock() + '</div><div class="hi-date" id="hub-date"></div></div><div class="hi-acc">' + U.esc(T('hub.account')) + ': <b>' + U.esc(account.name) + '</b> · ' + account.type.toUpperCase() + '<br>' + U.esc(T('hub.expires')) + ': <b class="' + (ex ? ex.cls : 'ok') + '">' + U.esc(ex ? ex.text : T('exp.unlimited')) + '</b>' + (ex && account.expires ? ' (' + new Date(account.expires).toLocaleDateString() + ')' : '') + '</div>';
       tickHubClock(); clearInterval(hero.clockTimer); hero.clockTimer = setInterval(tickHubClock, 15000); return info;
     }
     var main = U.el('div', 'hub-main'), st;
@@ -426,7 +457,7 @@ var App = (function () {
   function setHeroWelcome() {
     var titleEl = U.$('#hero-title'); titleEl._item = null; titleEl.textContent = T('home.welcome', { name: account.name });
     U.$('#hero-desc').textContent = T('home.tagline', { src: 'Xtream Codes' });
-    U.$('#hero-tag').textContent = 'XTREAM'; U.$('#hero-meta').innerHTML = '';
+    U.$('#hero-tag').textContent = account.type.toUpperCase(); U.$('#hero-meta').innerHTML = '';
     U.$('#hero-bg').style.backgroundImage = ''; U.$('#hero').classList.add('plain'); U.$('#hero-poster').classList.remove('show'); U.$('#hero-dots').innerHTML = '';
     tickHeroClock(); clearInterval(hero.clockTimer); hero.clockTimer = setInterval(tickHeroClock, 15000);
   }
@@ -650,7 +681,7 @@ var App = (function () {
     U.$('[data-setting="adhan"]').textContent = s.adhan ? T('on') : T('off');
     U.$('[data-setting="wxUnit"]').textContent = s.wxUnit === 'f' ? '°F' : '°C';
     U.$('[data-setting="autoNext"]').textContent = s.autoNext ? T('on') : T('off');
-    U.$('#settings-account-info').textContent = account.name + ' · XTREAM CODES' + (account.expires ? ' · ' + (expiryText(account.expires).text) + ' (' + new Date(account.expires).toLocaleDateString() + ')' : '') + (account.kids ? ' · Kids profile' : '');
+    U.$('#settings-account-info').textContent = account.name + ' · ' + account.type.toUpperCase() + (account.expires ? ' · ' + (expiryText(account.expires).text) + ' (' + new Date(account.expires).toLocaleDateString() + ')' : '') + (account.kids ? ' · Kids profile' : '');
     if (!Nav.current() || !Nav.visible(Nav.current())) Nav.focus(U.$('[data-setting="lang"]'));
   }
   function toggleSetting(k) {
@@ -827,7 +858,7 @@ var App = (function () {
     if (screen === 'details') U.$('[data-action="details-fav"]').textContent = on ? T('favorited') : T('favorite');
     if (live.vl) { var idx = live.vl.items.indexOf(it); if (idx >= 0) live.vl.refreshItem(idx); }
   }
-  
+
   /* ---------- ambient screensaver ---------- */
   var amb = { last: Date.now(), on: false, timer: null, idx: 0, pool: [], flip: 0 };
   function noteActivity() { amb.last = Date.now(); if (amb.on) hideAmbient(); }
@@ -860,7 +891,7 @@ var App = (function () {
       var a = t.getAttribute('data-action'), sec = t.getAttribute('data-section'), typ = t.getAttribute('data-type'), set = t.getAttribute('data-setting');
       if (t.id === 'kids-switch') { t.setAttribute('data-on', t.getAttribute('data-on') === '1' ? '0' : '1'); return; }
       if (sec) { showSection(sec); if ((t.classList.contains('tile') || t.classList.contains('util')) && !document.body.classList.contains('hubmode')) Nav.focus(U.$('.nav-item[data-section="' + sec + '"]')); else if (t.id === 'hub-home') Nav.focus(U.$('#hub .tile')); return; }
-      if (typ && t.classList.contains('tab')) { setAddType('xtream'); return; }
+      if (typ && t.classList.contains('tab')) { setAddType(typ); return; }
       if (set) { toggleSetting(set); return; }
       var tp = t.getAttribute('data-theme-pick'); if (tp) { Store.setSetting('theme', tp); applyTheme(); renderSettings(); return; }
       var lp = t.getAttribute('data-layout-pick'); if (lp) { Store.setSetting('layout', lp); applyUi(); renderSettings(); UI.toast(T('lay.' + lp), 2000, '✓'); return; }
