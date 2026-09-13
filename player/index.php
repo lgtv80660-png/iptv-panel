@@ -1,8 +1,8 @@
 <?php
-// player/index.php - G-PANEL RGBTv Player avec Proxy + Auto-Inject Profile
+// player/index.php - G-PANEL RGBTv Player (Internal Proxy + Auto-Inject Profile)
 ini_set('display_errors', 0);
 
-// Proxy PHP ultra-léger pour les flux vidéo (HTTP/HTTPS & CORS)
+// Proxy PHP ultra-léger pour les flux vidéo (résolution HTTP/HTTPS & bypass CORS)
 if (isset($_GET['proxy_url'])) {
     $rawUrl = urldecode($_GET['proxy_url']);
     if (filter_var($rawUrl, FILTER_VALIDATE_URL)) {
