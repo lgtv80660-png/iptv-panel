@@ -1,28 +1,20 @@
 <?php
-// On tente de lire la variable d'environnement injectée par le serveur
-$databaseUrl = getenv('MYSQL_URL') 
-    ?: ($_ENV['MYSQL_URL'] ?? null) 
-    ?: ($_SERVER['MYSQL_URL'] ?? null);
+// Lecture sécurisée des variables depuis le serveur (Vercel)
+$host = getenv('MYSQLHOST') ?: ($_ENV['MYSQLHOST'] ?? ($_SERVER['MYSQLHOST'] ?? null));
+$port = getenv('MYSQLPORT') ?: ($_ENV['MYSQLPORT'] ?? ($_SERVER['MYSQLPORT'] ?? '34100'));
+$user = getenv('MYSQLUSER') ?: ($_ENV['MYSQLUSER'] ?? ($_SERVER['MYSQLUSER'] ?? null));
+$pass = getenv('MYSQLPASSWORD') ?: ($_ENV['MYSQLPASSWORD'] ?? ($_SERVER['MYSQLPASSWORD'] ?? null));
+$db   = getenv('MYSQLDATABASE') ?: ($_ENV['MYSQLDATABASE'] ?? ($_SERVER['MYSQLDATABASE'] ?? 'mysql'));
 
-if (!$databaseUrl) {
-    // Message générique : aucun mot de passe ni identifiant n'est révélé
-    die("Erreur de configuration serveur : Impossible de charger la base de données.");
+if (!$host || !$user || !$pass) {
+    die("Erreur de configuration serveur : Variables d'environnement manquantes.");
 }
-
-$dbConfig = parse_url($databaseUrl);
-
-$host = $dbConfig['host'] ?? '';
-$port = $dbConfig['port'] ?? 3306;
-$user = $dbConfig['user'] ?? '';
-$pass = $dbConfig['pass'] ?? '';
-$path = isset($dbConfig['path']) ? ltrim($dbConfig['path'], '/') : '';
-$db   = !empty($path) ? $path : 'mysql';
 
 try {
     $pdo = new PDO("mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4", $user, $pass);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
-    // Masquage absolu des détails PDO en production
-    die("Erreur de connexion à la base de données.");
+    // Masque les détails PDO sensibles en cas d'échec
+    die("Erreur de connexion à la base de données : " . $e->getMessage());
 }
 ?>
