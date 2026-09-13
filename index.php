@@ -1,28 +1,42 @@
 <?php
 require_once 'config.php';
 
-// Récupération de la clé API (Vercel env ou valeur fallback)
-$apiKey = getenv('TMDB_API_KEY') ?: ($_ENV['TMDB_API_KEY'] ?? 'VOTRE_CLE_API_TMDB_ICI');
+// Récupération de la clé TMDB depuis les variables Vercel
+$apiKey = $_ENV['TMDB_API_KEY'] ?? $_SERVER['TMDB_API_KEY'] ?? getenv('TMDB_API_KEY');
 
-// Fonction helper pour interroger TMDB
+// Fonction d'appel TMDB ultra-compatible Vercel Serverless
 function fetchTMDB($endpoint, $apiKey) {
+    if (!$apiKey) return ['results' => []];
+
     $url = "https://api.themoviedb.org/3/{$endpoint}?api_key={$apiKey}&language=fr-FR&page=1";
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    $response = curl_exec($ch);
-    curl_close($ch);
-    return json_decode($response, true);
+    
+    $opts = [
+        "http" => [
+            "method" => "GET",
+            "header" => "User-Agent: PHP\r\n"
+        ],
+        "ssl" => [
+            "verify_peer" => false,
+            "verify_peer_name" => false
+        ]
+    ];
+    
+    $context = stream_context_create($opts);
+    $response = @file_get_contents($url, false, $context);
+    
+    return $response ? json_decode($response, true) : ['results' => []];
 }
 
-// Récupération des données TMDB
-$trendingMovies = fetchTMDB('trending/movie/week', $apiKey)['results'] ?? [];
-$popularSeries  = fetchTMDB('tv/popular', $apiKey)['results'] ?? [];
+// Récupération des contenus
+$trendingData      = fetchTMDB('trending/movie/week', $apiKey);
+$popularSeriesData = fetchTMDB('tv/popular', $apiKey);
 
-// Image Héro (premier film tendance)
+$trendingMovies = $trendingData['results'] ?? [];
+$popularSeries  = $popularSeriesData['results'] ?? [];
+
+// Sélection du film principal pour le Banner Hero
 $heroMovie = $trendingMovies[0] ?? null;
-$heroBg = $heroMovie && isset($heroMovie['backdrop_path']) 
+$heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
     ? "https://image.tmdb.org/t/p/original" . $heroMovie['backdrop_path'] 
     : "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=1920";
 ?>
@@ -31,81 +45,218 @@ $heroBg = $heroMovie && isset($heroMovie['backdrop_path'])
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GMZ TV - Movies & Series</title>
+    <title>G-PANEL - IPTV Management System</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-        body { background-color: #141414; color: #ffffff; overflow-x: hidden; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        }
 
+        body {
+            background-color: #0b0e14;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        /* En-tête / Navigation */
         header {
-            position: fixed; top: 0; width: 100%; padding: 20px 50px;
-            display: flex; justify-content: space-between; align-items: center;
-            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(11, 14, 20, 0.95) 0%, rgba(11, 14, 20, 0) 100%);
             z-index: 1000;
         }
-        .logo { font-size: 1.8rem; font-weight: 900; color: #e50914; text-transform: uppercase; }
-        .btn-admin { background-color: #e50914; color: #fff; padding: 8px 20px; text-decoration: none; font-weight: 600; border-radius: 4px; }
 
-        .hero {
-            position: relative; height: 75vh;
-            background: linear-gradient(to top, #141414 5%, transparent 60%),
-                        linear-gradient(to right, rgba(0,0,0,0.8) 20%, transparent 70%),
-                        url('<?php echo $heroBg; ?>') center/cover no-repeat;
-            display: flex; align-items: center; padding: 0 50px;
+        .logo-container img {
+            height: 48px;
+            width: auto;
+            display: block;
+            object-fit: contain;
         }
-        .hero-content { max-width: 600px; }
-        .hero-title { font-size: 3rem; font-weight: 800; margin-bottom: 15px; }
-        .hero-desc { font-size: 1rem; color: #e5e5e5; margin-bottom: 25px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-        .btn-play { background-color: #ffffff; color: #000000; padding: 12px 25px; border-radius: 4px; font-weight: bold; text-decoration: none; display: inline-block; }
 
-        .content-section { padding: 20px 50px; margin-top: -60px; position: relative; z-index: 10; }
-        .section-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 15px; color: #e5e5e5; }
+        .btn-admin {
+            background: linear-gradient(135deg, #0052d4 0%, #4364f7 50%, #6fb1fc 100%);
+            color: #ffffff;
+            padding: 10px 24px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.95rem;
+            border-radius: 6px;
+            box-shadow: 0 4px 15px rgba(67, 100, 247, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .btn-admin:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(67, 100, 247, 0.6);
+        }
+
+        /* Hero Banner */
+        .hero {
+            position: relative;
+            height: 78vh;
+            background: linear-gradient(to top, #0b0e14 8%, transparent 60%),
+                        linear-gradient(to right, rgba(11, 14, 20, 0.9) 25%, transparent 75%),
+                        url('<?php echo $heroBg; ?>') center/cover no-repeat;
+            display: flex;
+            align-items: center;
+            padding: 0 40px;
+        }
+
+        .hero-content {
+            max-width: 620px;
+        }
+
+        .hero-title {
+            font-size: 3.2rem;
+            font-weight: 800;
+            margin-bottom: 15px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+        }
+
+        .hero-desc {
+            font-size: 1.05rem;
+            color: #d1d5db;
+            margin-bottom: 25px;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .btn-play {
+            background-color: #ffffff;
+            color: #0b0e14;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-weight: 800;
+            font-size: 1.05rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .btn-play:hover {
+            opacity: 0.9;
+            transform: scale(1.02);
+        }
+
+        /* Sections Contenu */
+        .content-section {
+            padding: 0 40px;
+            margin-top: -60px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 18px;
+            color: #f3f4f6;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
 
         .movies-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; margin-bottom: 40px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 18px;
+            margin-bottom: 45px;
         }
+
         .movie-card {
-            position: relative; aspect-ratio: 2/3; border-radius: 6px; overflow: hidden; cursor: pointer; transition: transform 0.3s ease;
+            position: relative;
+            aspect-ratio: 2/3;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-        .movie-card img { width: 100%; height: 100%; object-fit: cover; }
-        .movie-card:hover { transform: scale(1.06); z-index: 5; }
+
+        .movie-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .movie-card:hover {
+            transform: translateY(-6px) scale(1.03);
+            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.8), 0 0 15px rgba(67, 100, 247, 0.3);
+            z-index: 5;
+        }
+
+        @media (max-width: 768px) {
+            header, .hero, .content-section {
+                padding-left: 20px;
+                padding-right: 20px;
+            }
+            .hero-title {
+                font-size: 2.2rem;
+            }
+            .logo-container img {
+                height: 36px;
+            }
+        }
     </style>
 </head>
 <body>
 
     <header>
-        <div class="logo">GMZ TV</div>
+        <div class="logo-container">
+            <img src="assets/g-panel-logo-dark.jpg" alt="G-PANEL IPTV Management System">
+        </div>
         <a href="/admin.php" class="btn-admin">Espace Admin</a>
     </header>
 
     <section class="hero">
         <div class="hero-content">
             <h1 class="hero-title"><?php echo htmlspecialchars($heroMovie['title'] ?? $heroMovie['name'] ?? 'Films & Séries'); ?></h1>
-            <p class="hero-desc"><?php echo htmlspecialchars($heroMovie['overview'] ?? 'Regardez vos programmes préférés en HD sur GMZ TV.'); ?></p>
-            <a href="/admin.php" class="btn-play">▶ Regarder maintenant</a>
+            <p class="hero-desc"><?php echo htmlspecialchars($heroMovie['overview'] ?? 'Accédez à vos contenus, chaînes en direct et catalogue VOD en Ultra HD avec G-PANEL.'); ?></p>
+            <a href="/admin.php" class="btn-play">▶ Accéder au Player</a>
         </div>
     </section>
 
     <section class="content-section">
         <h2 class="section-title">🔥 Films Tendances cette semaine</h2>
         <div class="movies-grid">
-            <?php foreach (array_slice($trendingMovies, 0, 12) as $movie): ?>
-                <?php if (!empty($movie['poster_path'])): ?>
-                    <div class="movie-card" title="<?php echo htmlspecialchars($movie['title']); ?>">
-                        <img src="https://image.tmdb.org/t/p/w500<?php echo $movie['poster_path']; ?>" alt="<?php echo htmlspecialchars($movie['title']); ?>">
-                    </div>
-                <?php endif; ?>
-            <?php endforeach; ?>
+            <?php if (!empty($trendingMovies)): ?>
+                <?php foreach (array_slice($trendingMovies, 0, 12) as $movie): ?>
+                    <?php if (!empty($movie['poster_path'])): ?>
+                        <div class="movie-card" title="<?php echo htmlspecialchars($movie['title']); ?>">
+                            <img src="https://image.tmdb.org/t/p/w500<?php echo $movie['poster_path']; ?>" alt="<?php echo htmlspecialchars($movie['title']); ?>">
+                        </div>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <p style="color: #9ca3af;">Chargement des catalogues...</p>
+            <?php endif; ?>
         </div>
 
         <h2 class="section-title">📺 Séries Populaires</h2>
         <div class="movies-grid">
-            <?php foreach (array_slice($popularSeries, 0, 12) as $show): ?>
-                <?php if (!empty($show['poster_path'])): ?>
-                    <div class="movie-card" title="<?php echo htmlspecialchars($show['name']); ?>">
-                        <img src="https://image.tmdb.org/t/p/w500<?php echo $show['poster_path']; ?>" alt="<?php echo htmlspecialchars($show['name']); ?>">
-                    </div>
-                <?php endif; ?>
-            <?php endforeach; ?>
+            <?php if (!empty($popularSeries)): ?>
+                <?php foreach (array_slice($popularSeries, 0, 12) as $show): ?>
+                    <?php if (!empty($show['poster_path'])): ?>
+                        <div class="movie-card" title="<?php echo htmlspecialchars($show['name']); ?>">
+                            <img src="https://image.tmdb.org/t/p/w500<?php echo $show['poster_path']; ?>" alt="<?php echo htmlspecialchars($show['name']); ?>">
+                        </div>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <p style="color: #9ca3af;">Chargement des séries...</p>
+            <?php endif; ?>
         </div>
     </section>
 
