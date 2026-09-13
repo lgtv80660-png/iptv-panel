@@ -1,10 +1,10 @@
 <?php
 require_once 'config.php';
 
-// Récupération de la clé TMDB depuis les variables Vercel
-$apiKey = $_ENV['TMDB_API_KEY'] ?? $_SERVER['TMDB_API_KEY'] ?? getenv('TMDB_API_KEY');
+// Récupération de la clé TMDB (Vercel ENV avec fallback sur votre clé d'API)
+$apiKey = $_ENV['TMDB_API_KEY'] ?? $_SERVER['TMDB_API_KEY'] ?? getenv('TMDB_API_KEY') ?: '7b311a6f43090b24f188272bcc0655b3';
 
-// Fonction d'appel TMDB ultra-compatible Vercel Serverless
+// Fonction de requête TMDB compatible Vercel Serverless (sans dépendre du cURL natif)
 function fetchTMDB($endpoint, $apiKey) {
     if (!$apiKey) return ['results' => []];
 
@@ -27,14 +27,14 @@ function fetchTMDB($endpoint, $apiKey) {
     return $response ? json_decode($response, true) : ['results' => []];
 }
 
-// Récupération des contenus
+// Récupération des films tendances et séries populaires
 $trendingData      = fetchTMDB('trending/movie/week', $apiKey);
 $popularSeriesData = fetchTMDB('tv/popular', $apiKey);
 
 $trendingMovies = $trendingData['results'] ?? [];
 $popularSeries  = $popularSeriesData['results'] ?? [];
 
-// Sélection du film principal pour le Banner Hero
+// Film à l'affiche pour le Banner Hero
 $heroMovie = $trendingMovies[0] ?? null;
 $heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
     ? "https://image.tmdb.org/t/p/original" . $heroMovie['backdrop_path'] 
@@ -60,7 +60,7 @@ $heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
             overflow-x: hidden;
         }
 
-        /* En-tête / Navigation */
+        /* Header Navigation */
         header {
             position: fixed;
             top: 0;
@@ -74,7 +74,7 @@ $heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
         }
 
         .logo-container img {
-            height: 48px;
+            height: 44px;
             width: auto;
             display: block;
             object-fit: contain;
@@ -142,7 +142,7 @@ $heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            transition: opacity 0.2s ease, transform 0.2s ease;
+            transition: all 0.2s ease;
         }
 
         .btn-play:hover {
@@ -150,7 +150,7 @@ $heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
             transform: scale(1.02);
         }
 
-        /* Sections Contenu */
+        /* Grid Content */
         .content-section {
             padding: 0 40px;
             margin-top: -60px;
@@ -163,9 +163,6 @@ $heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
             font-weight: 700;
             margin-bottom: 18px;
             color: #f3f4f6;
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
 
         .movies-grid {
@@ -206,7 +203,7 @@ $heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
                 font-size: 2.2rem;
             }
             .logo-container img {
-                height: 36px;
+                height: 34px;
             }
         }
     </style>
@@ -215,7 +212,7 @@ $heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
 
     <header>
         <div class="logo-container">
-            <img src="assets/g-panel-logo-dark.jpg" alt="G-PANEL IPTV Management System">
+            <img src="assets/g-panel-logo-dark.png" alt="G-PANEL IPTV Management System">
         </div>
         <a href="/admin.php" class="btn-admin">Espace Admin</a>
     </header>
@@ -231,32 +228,24 @@ $heroBg = ($heroMovie && !empty($heroMovie['backdrop_path']))
     <section class="content-section">
         <h2 class="section-title">🔥 Films Tendances cette semaine</h2>
         <div class="movies-grid">
-            <?php if (!empty($trendingMovies)): ?>
-                <?php foreach (array_slice($trendingMovies, 0, 12) as $movie): ?>
-                    <?php if (!empty($movie['poster_path'])): ?>
-                        <div class="movie-card" title="<?php echo htmlspecialchars($movie['title']); ?>">
-                            <img src="https://image.tmdb.org/t/p/w500<?php echo $movie['poster_path']; ?>" alt="<?php echo htmlspecialchars($movie['title']); ?>">
-                        </div>
-                    <?php endif; ?>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <p style="color: #9ca3af;">Chargement des catalogues...</p>
-            <?php endif; ?>
+            <?php foreach (array_slice($trendingMovies, 0, 12) as $movie): ?>
+                <?php if (!empty($movie['poster_path'])): ?>
+                    <div class="movie-card" title="<?php echo htmlspecialchars($movie['title']); ?>">
+                        <img src="https://image.tmdb.org/t/p/w500<?php echo $movie['poster_path']; ?>" alt="<?php echo htmlspecialchars($movie['title']); ?>">
+                    </div>
+                <?php endif; ?>
+            <?php endforeach; ?>
         </div>
 
         <h2 class="section-title">📺 Séries Populaires</h2>
         <div class="movies-grid">
-            <?php if (!empty($popularSeries)): ?>
-                <?php foreach (array_slice($popularSeries, 0, 12) as $show): ?>
-                    <?php if (!empty($show['poster_path'])): ?>
-                        <div class="movie-card" title="<?php echo htmlspecialchars($show['name']); ?>">
-                            <img src="https://image.tmdb.org/t/p/w500<?php echo $show['poster_path']; ?>" alt="<?php echo htmlspecialchars($show['name']); ?>">
-                        </div>
-                    <?php endif; ?>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <p style="color: #9ca3af;">Chargement des séries...</p>
-            <?php endif; ?>
+            <?php foreach (array_slice($popularSeries, 0, 12) as $show): ?>
+                <?php if (!empty($show['poster_path'])): ?>
+                    <div class="movie-card" title="<?php echo htmlspecialchars($show['name']); ?>">
+                        <img src="https://image.tmdb.org/t/p/w500<?php echo $show['poster_path']; ?>" alt="<?php echo htmlspecialchars($show['name']); ?>">
+                    </div>
+                <?php endif; ?>
+            <?php endforeach; ?>
         </div>
     </section>
 
