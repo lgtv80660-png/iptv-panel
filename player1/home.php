@@ -1,0 +1,508 @@
+<?php
+require_once("libs/lib.php");
+require_once("libs/services/content.php");
+
+if (!isset($_COOKIE['xuserm']) || !isset($_COOKIE['xpwdm']) || empty($_COOKIE['xuserm']) || empty($_COOKIE['xpwdm'])) {
+    header("Location: login.php");
+    exit;
+}
+
+$user = $_COOKIE['xuserm'];
+$pwd = $_COOKIE['xpwdm'];
+$movies = getMovies($user, $pwd, 1000);
+$series = getSeries($user, $pwd, 1000);
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>PLAYGO - Inicio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="shortcut icon" href="assets/icon/favicon.ico">
+    <link rel="stylesheet" href="./styles/vendors/bootstrap-reboot.min.css">
+    <link rel="stylesheet" href="./styles/vendors/bootstrap-grid.min.css">
+    <link rel="stylesheet" href="./styles/vendors/owl.carousel.min.css">
+    <link rel="stylesheet" href="./styles/vendors/jquery.mcustomscrollbar.min.css">
+    <link rel="stylesheet" href="./styles/vendors/nouislider.min.css">
+    <link rel="stylesheet" href="./styles/vendors/ionicons.min.css">
+    <link rel="stylesheet" href="./styles/vendors/photoswipe.css">
+    <link rel="stylesheet" href="./styles/vendors/glightbox.css">
+    <link rel="stylesheet" href="./styles/vendors/default-skin.css">
+    <link rel="stylesheet" href="./styles/vendors/jBox.all.min.css">
+    <link rel="stylesheet" href="./styles/vendors/select2.min.css">
+    <link rel="stylesheet" href="./styles/vendors/font-awesome-6.5.0.min.css">
+    <link rel="stylesheet" href="./styles/core/main.css">
+    <link rel="stylesheet" href="./styles/home/background.css">
+    <link rel="stylesheet" href="./styles/home/cards.css">
+    <link rel="stylesheet" href="./styles/home/header.css">
+    <link rel="stylesheet" href="./styles/home/tabs.css">
+    <link rel="stylesheet" href="./styles/home/refresh.css">
+    <link rel="stylesheet" href="./styles/home/selects.css">
+    <link rel="stylesheet" href="./styles/home/mobile.css">
+</head>
+<body class="body">
+<header class="header">
+    <div class="navbar-overlay bg-animate"></div>
+    <div class="header__wrap">
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <div class="header__content d-flex align-items-center justify-content-between">
+                        <a class="header__logo" href="login.php">
+                            <img src="assets/logo/logo.png" alt="">
+                        </a>
+                        <ul class="header__nav d-flex align-items-center mb-0">
+                            <li class="header__nav-item">
+                                <a href="./home.php" class="header__nav-link header__nav-link--active">Inicio</a>
+                            </li>
+                            <li class="header__nav-item">
+                                <a href="./channels.php" class="header__nav-link">TV en Vivo</a>
+                            </li>
+                            <li class="header__nav-item">
+                                <a href="movies.php" class="header__nav-link">Películas</a>
+                            </li>
+                            <li class="header__nav-item">
+                                <a href="series.php" class="header__nav-link">Series</a>
+                            </li>
+                            <li class="header__nav-item">
+                                <a href="sagas.php" class="header__nav-link">Sagas</a>
+                            </li>
+                        </ul>
+                        <div class="header__auth d-flex align-items-center">
+                            <button class="header__search-btn" type="button" id="openSearchModal">
+                                <i class="fas fa-search"></i>
+                            </button>
+                            <a href="profile.php">
+                                <button class="header__signout-btn" type="button">
+                                    <i class="fas fa-user"></i>
+                                </button>
+                            </a>
+                        </div>
+                        <button class="header__btn" type="button">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<?php include_once __DIR__ . '/libs/views/search.php'; ?>
+
+    <section class="home">
+        <div class="owl-carousel home__bg">
+            <?php
+            $slider_items = [];
+            foreach($movies as $row) {
+                $slider_items[] = [
+                    'img' => $row['stream_icon']
+                ];
+            }
+            foreach($series as $row) {
+                $slider_items[] = [
+                    'img' => $row['cover']
+                ];
+            }
+            shuffle($slider_items);
+            foreach(array_slice($slider_items,0,6) as $item) {
+                ?>
+                <div class="item home__cover" data-bg="<?php echo $item['img']; ?>"></div>
+            <?php } ?>
+        </div>
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <h1 class="home__title">POPULARES <b>AHORA</b></h1>
+                    <button class="home__nav home__nav--prev" type="button">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <button class="home__nav home__nav--next" type="button">
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+                <div class="col-12">
+                    <div class="owl-carousel home__carousel">
+                        <?php
+                        $carousel_items = [];
+                        foreach($movies as $row) {
+                            $carousel_items[] = [
+                                'type' => 'movie',
+                                'id' => $row['stream_id'],
+                                'name' => $row['name'],
+                                'img' => $row['stream_icon'],
+                                'stream_type' => $row['stream_type'],
+                                'year' => isset($row['year']) ? $row['year'] : 'N/A',
+                                'rating' => isset($row['rating_5based']) ? $row['rating_5based'] : 'N/A'
+                            ];
+                        }
+                        foreach($series as $row) {
+                            $carousel_items[] = [
+                                'type' => 'serie',
+                                'id' => $row['series_id'],
+                                'name' => $row['name'],
+                                'img' => $row['cover'],
+                                'year' => isset($row['year']) ? $row['year'] : (isset($row['releaseDate']) ? substr($row['releaseDate'], 0, 4) : 'N/A'),
+                                'rating' => isset($row['rating']) ? $row['rating'] : (isset($row['rating_5based']) ? $row['rating_5based'] : 'N/A')
+                            ];
+                        }
+                        shuffle($carousel_items);
+                        foreach(array_slice($carousel_items,0,12) as $item) {
+                            if($item['type'] == 'movie') {
+                                $url = "movie.php?stream={$item['id']}&streamtipo=movie";
+                            } else {
+                                $url = "serie.php?stream={$item['id']}&streamtipo=serie";
+                            }
+                        ?>
+                        <div class="item">
+                           <div class="card card--big">
+                              <div class="card__cover">
+                                    <img loading="lazy" src="<?php echo $item['img']; ?>" alt="">
+                                    <a href="<?php echo $url; ?>" class="card__play">
+                                       <i class="fas fa-play"></i>
+                                    </a>
+                              </div>
+                              <div class="card__content">
+                                    <h3 class="card__title" style="margin-top:0;">
+                                       <a href="<?php echo $url; ?>">
+                                        <?php echo limitar_texto(preg_replace('/\s*\(\d{4}\)$/', '', $item['name']),30); ?>
+                                       </a>
+                                    </h3>
+                                    <span class="card__rate" style="display:block;margin-top:4px;margin-bottom:0;font-size:1.05rem;">
+                                       <?php echo $item['year']; ?> &nbsp; <i class="fas fa-star" style="color:#FFD700"></i> <?php echo $item['rating']; ?>
+                                    </span>
+                              </div>
+                           </div>
+                        </div>
+                        <?php } ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content">
+        <div class="content__head">
+            <div class="container">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="d-flex align-items-center justify-content-between" style="margin-top:30px;">
+                            <h1 class="home__title" style="margin:0;">RECOMENDACIONES</h1>
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <ul class="nav nav-tabs content__tabs" id="content__tabs" role="tablist">
+                                <li class="nav-item">
+                                    <a class="nav-link active" data-toggle="tab" href="#movies" role="tab" aria-controls="movies" aria-selected="true">PELÍCULAS</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-toggle="tab" href="#series" role="tab" aria-controls="series" aria-selected="false">SERIES</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-toggle="tab" href="#estrenos" role="tab" aria-controls="estrenos" aria-selected="false">ESTRENOS</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-toggle="tab" href="#recientes" role="tab" aria-controls="recientes" aria-selected="false">RECIÉN AGREGADOS</a>
+                                </li>
+                            </ul>
+                            <div class="tabs-actions">
+                                <button class="refresh-btn" data-type="movie" type="button" title="Actualizar Películas" id="refresh-movies-btn" style="display:none;">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button class="refresh-btn" data-type="series" type="button" title="Actualizar Series" id="refresh-series-btn" style="display:none;">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <select id="recientes-type" class="form-control" style="display:none; width: auto; max-width: 200px;">
+                                    <option value="movie">Películas</option>
+                                    <option value="series">Series</option>
+                                </select>
+                                <select id="estrenos-type" class="form-control" style="display:none; width: auto; max-width: 200px;">
+                                    <option value="movie">Películas</option>
+                                    <option value="series">Series</option>
+                                </select>
+                                <select id="estrenos-year" class="form-control" style="display:none; width: auto; max-width: 150px;">
+                                    <?php
+                                    $currentYear = date('Y');
+                                    for ($y = $currentYear; $y >= 1973; $y--) {
+                                        echo '<option value="' . $y . '"' . ($y == $currentYear ? ' selected' : '') . '>' . $y . '</option>';
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="content__mobile-tabs" id="content__mobile-tabs">
+                            <div class="content__mobile-tabs-btn dropdown-toggle" role="navigation" id="mobile-tabs" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <input type="button" value="Películas">
+                                <span></span>
+                            </div>
+                            <div class="content__mobile-tabs-menu dropdown-menu" aria-labelledby="mobile-tabs">
+                                <ul class="nav nav-tabs" role="tablist">
+                                    <li class="nav-item"><a class="nav-link active" id="movies-tab" data-toggle="tab" href="#movies" role="tab" aria-controls="movies" aria-selected="true">PELÍCULAS</a></li>
+                                    <li class="nav-item"><a class="nav-link" id="series-tab" data-toggle="tab" href="#series" role="tab" aria-controls="series" aria-selected="false">SERIES</a></li>
+                                    <li class="nav-item"><a class="nav-link" id="estrenos-tab" data-toggle="tab" href="#estrenos" role="tab" aria-controls="estrenos" aria-selected="false">ESTRENOS</a></li>
+                                    <li class="nav-item"><a class="nav-link" id="recientes-tab" data-toggle="tab" href="#recientes" role="tab" aria-controls="recientes" aria-selected="false">RECIÉN AGREGADOS</a></li>
+                                </ul>
+                            </div>
+                            <div class="tabs-actions-mobile">
+                                <button class="refresh-btn" data-type="movie" type="button" title="Actualizar Películas" id="refresh-movies-btn-mobile" style="display:none;">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button class="refresh-btn" data-type="series" type="button" title="Actualizar Series" id="refresh-series-btn-mobile" style="display:none;">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <select id="recientes-type-mobile" class="form-control" style="display:none; width: auto; max-width: 140px;">
+                                    <option value="movie">Películas</option>
+                                    <option value="series">Series</option>
+                                </select>
+                                <select id="estrenos-type-mobile" class="form-control" style="display:none; width: auto; max-width: 140px;">
+                                    <option value="movie">Películas</option>
+                                    <option value="series">Series</option>
+                                </select>
+                                <select id="estrenos-year-mobile" class="form-control" style="display:none; width: auto; max-width: 100px;">
+                                    <?php
+                                    $currentYear = date('Y');
+                                    for ($y = $currentYear; $y >= 1973; $y--) {
+                                        echo '<option value="' . $y . '"' . ($y == $currentYear ? ' selected' : '') . '>' . $y . '</option>';
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="movies" role="tabpanel" aria-labelledby="movies-tab">
+                    <div class="row" id="movies-grid">
+                        <?php
+                        $movies_list = array_slice($movies, 0, 16);
+                        foreach($movies_list as $row) {
+    $filme_nome = $row['name'];
+    $filme_id = $row['stream_id'];
+    $filme_img = $row['stream_icon'];
+    $filme_rat = $row['rating_5based'];
+    $filme_ano = isset($row['year']) ? $row['year'] : 'N/A';
+?>
+<div class="col-6 col-sm-4 col-lg-3 col-xl-3">
+    <div class="card">
+        <div class="card__cover">
+            <img loading="lazy" src="<?php echo $filme_img; ?>" alt="">
+            <a href="movie.php?stream=<?php echo $filme_id; ?>&streamtipo=movie" class="card__play">
+                <i class="fas fa-play"></i>
+            </a>
+        </div>
+        <div class="card__content">
+            <h3 class="card__title" style="margin-top:0;">
+                <a href="movie.php?stream=<?php echo $filme_id; ?>&streamtipo=movie">
+                <?php echo limitar_texto(preg_replace('/\s*\(\d{4}\)$/', '', $filme_nome),30); ?>
+                </a>
+            </h3>
+            <span class="card__rate" style="display:block;margin-top:4px;margin-bottom:0;font-size:1.05rem;">
+                <?php echo $filme_ano; ?> &nbsp; <i class="fas fa-star" style="color:#FFD700"></i> <?php echo $filme_rat; ?>
+            </span>
+        </div>
+    </div>
+</div>
+<?php } ?>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="series" role="tabpanel" aria-labelledby="series-tab">
+                    <div class="row" id="series-grid">
+                        <?php
+                        $series_list = array_slice($series, 0, 16);
+                        foreach($series_list as $row) {
+    $serie_nome = $row['name'];
+    $serie_id = $row['series_id'];
+    $serie_img = $row['cover'];
+    $serie_ano = isset($row['year']) ? $row['year'] : (isset($row['releaseDate']) ? substr($row['releaseDate'], 0, 4) : 'N/A');
+    $serie_rat = isset($row['rating']) ? $row['rating'] : (isset($row['rating_5based']) ? $row['rating_5based'] : 'N/A');
+?>
+<div class="col-6 col-sm-4 col-lg-3 col-xl-3">
+    <div class="card">
+        <div class="card__cover">
+            <img loading="lazy" src="<?php echo $serie_img; ?>" alt="">
+            <a href="serie.php?stream=<?php echo $serie_id; ?>&streamtipo=serie" class="card__play">
+                <i class="fas fa-play"></i>
+            </a>
+        </div>
+        <div class="card__content">
+            <h3 class="card__title" style="margin-top:0;">
+                <a href="serie.php?stream=<?php echo $serie_id; ?>&streamtipo=serie">
+        <?php echo limitar_texto(preg_replace('/\s*\(\d{4}\)$/', '', $serie_nome),30); ?>
+                </a>
+            </h3>
+            <span class="card__rate" style="display:block;margin-top:4px;margin-bottom:0;font-size:1.05rem;">
+                <?php echo $serie_ano; ?> &nbsp; <i class="fas fa-star" style="color:#FFD700"></i> <?php echo $serie_rat; ?>
+            </span>
+        </div>
+    </div>
+</div>
+<?php } ?>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="estrenos" role="tabpanel" aria-labelledby="estrenos-tab">
+                    <div class="row" id="estrenos-grid">
+                        <?php
+                        $currentYear = date('Y');
+                        $estrenos = [];
+                        foreach($movies as $row) {
+                            $rowYear = isset($row['year']) ? $row['year'] : (isset($row['releaseDate']) ? substr($row['releaseDate'], 0, 4) : 'N/A');
+                            if ($rowYear == $currentYear) {
+                                $estrenos[] = $row;
+                            }
+                        }
+                        usort($estrenos, function($a, $b) {
+                            $dateA = 0;
+                            $dateB = 0;
+                            if (isset($a['releasedate']) && !empty($a['releasedate'])) {
+                                $dateA = strtotime($a['releasedate']);
+                            } elseif (isset($a['releaseDate']) && !empty($a['releaseDate'])) {
+                                $dateA = strtotime($a['releaseDate']);
+                            } elseif (isset($a['added']) && !empty($a['added'])) {
+                                $dateA = is_numeric($a['added']) ? (int)$a['added'] : strtotime($a['added']);
+                            } elseif (isset($a['year']) && !empty($a['year'])) {
+                                $dateA = strtotime($a['year'] . '-01-01');
+                            }
+                            if (isset($b['releasedate']) && !empty($b['releasedate'])) {
+                                $dateB = strtotime($b['releasedate']);
+                            } elseif (isset($b['releaseDate']) && !empty($b['releaseDate'])) {
+                                $dateB = strtotime($b['releaseDate']);
+                            } elseif (isset($b['added']) && !empty($b['added'])) {
+                                $dateB = is_numeric($b['added']) ? (int)$b['added'] : strtotime($b['added']);
+                            } elseif (isset($b['year']) && !empty($b['year'])) {
+                                $dateB = strtotime($b['year'] . '-01-01');
+                            }
+                            if ($dateA == $dateB) {
+                                $ratingA = isset($a['rating_5based']) ? (float)$a['rating_5based'] : (isset($a['rating']) ? (float)$a['rating'] : 0);
+                                $ratingB = isset($b['rating_5based']) ? (float)$b['rating_5based'] : (isset($b['rating']) ? (float)$b['rating'] : 0);
+                                return $ratingB <=> $ratingA;
+                            }
+                            return $dateB <=> $dateA;
+                        });
+                        $estrenos = array_slice($estrenos, 0, 16);
+                        foreach($estrenos as $row) {
+                            $filme_nome = $row['name'];
+                            $filme_id = $row['stream_id'];
+                            $filme_img = $row['stream_icon'];
+                            $filme_rat = $row['rating_5based'];
+                            $filme_ano = isset($row['year']) ? $row['year'] : 'N/A';
+                        ?>
+                        <div class="col-6 col-sm-4 col-lg-3 col-xl-3">
+                            <div class="card">
+                                <div class="card__cover">
+                                    <img loading="lazy" src="<?php echo $filme_img; ?>" alt="">
+                                    <a href="movie.php?stream=<?php echo $filme_id; ?>&streamtipo=movie" class="card__play">
+                                        <i class="fas fa-play"></i>
+                                    </a>
+                                </div>
+                                <div class="card__content">
+                                    <h3 class="card__title" style="margin-top:0;">
+                                        <a href="movie.php?stream=<?php echo $filme_id; ?>&streamtipo=movie">
+                                        <?php echo limitar_texto(preg_replace('/\s*\(\d{4}\)$/', '', $filme_nome),30); ?>
+                                        </a>
+                                    </h3>
+                                    <span class="card__rate" style="display:block;margin-top:4px;margin-bottom:0;font-size:1.05rem;">
+                                        <?php echo $filme_ano; ?> &nbsp; <i class="fas fa-star" style="color:#FFD700"></i> <?php echo $filme_rat; ?>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <?php } ?>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="recientes" role="tabpanel" aria-labelledby="recientes-tab">
+                    <div class="row" id="recientes-grid">
+                        <?php
+                        $recientes = $movies;
+                        usort($recientes, function($a, $b) {
+                            $dateA = 0;
+                            $dateB = 0;
+                            if (isset($a['added']) && !empty($a['added'])) {
+                                $dateA = is_numeric($a['added']) ? (int)$a['added'] : strtotime($a['added']);
+                            } elseif (isset($a['releasedate']) && !empty($a['releasedate'])) {
+                                $dateA = strtotime($a['releasedate']);
+                            } elseif (isset($a['releaseDate']) && !empty($a['releaseDate'])) {
+                                $dateA = strtotime($a['releaseDate']);
+                            }
+                            if (isset($b['added']) && !empty($b['added'])) {
+                                $dateB = is_numeric($b['added']) ? (int)$b['added'] : strtotime($b['added']);
+                            } elseif (isset($b['releasedate']) && !empty($b['releasedate'])) {
+                                $dateB = strtotime($b['releasedate']);
+                            } elseif (isset($b['releaseDate']) && !empty($b['releaseDate'])) {
+                                $dateB = strtotime($b['releaseDate']);
+                            }
+                            return $dateB <=> $dateA;
+                        });
+                        $recientes = array_slice($recientes, 0, 16);
+                        foreach($recientes as $row) {
+                            $filme_nome = $row['name'];
+                            $filme_id = $row['stream_id'];
+                            $filme_img = $row['stream_icon'];
+                            $filme_rat = $row['rating_5based'];
+                            $filme_ano = isset($row['year']) ? $row['year'] : 'N/A';
+                        ?>
+                        <div class="col-6 col-sm-4 col-lg-3 col-xl-3">
+                            <div class="card">
+                                <div class="card__cover">
+                                    <img loading="lazy" src="<?php echo $filme_img; ?>" alt="">
+                                    <a href="movie.php?stream=<?php echo $filme_id; ?>&streamtipo=movie" class="card__play">
+                                        <i class="fas fa-play"></i>
+                                    </a>
+                                </div>
+                                <div class="card__content">
+                                    <h3 class="card__title" style="margin-top:0;">
+                                        <a href="movie.php?stream=<?php echo $filme_id; ?>&streamtipo=movie">
+                                        <?php echo limitar_texto(preg_replace('/\s*\(\d{4}\)$/', '', $filme_nome),30); ?>
+                                        </a>
+                                    </h3>
+                                    <span class="card__rate" style="display:block;margin-top:4px;margin-bottom:0;font-size:1.05rem;">
+                                        <?php echo $filme_ano; ?> &nbsp; <i class="fas fa-star" style="color:#FFD700"></i> <?php echo $filme_rat; ?>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <?php } ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <div class="footer__copyright">
+                        &copy; <?php echo date('Y'); ?> <img height="20px" style="padding-left: 10px; padding-right: 10px; margin-top: -2px;" class="whiteout" src="assets/logo/logo.png"> PLAYGO
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <script src="./scripts/vendors/jquery-3.5.1.min.js"></script>
+    <script src="./scripts/vendors/bootstrap.bundle.min.js"></script>
+    <script src="./scripts/vendors/owl.carousel.min.js"></script>
+    <script src="./scripts/vendors/jquery.mousewheel.min.js"></script>
+    <script src="./scripts/vendors/jquery.mcustomscrollbar.min.js"></script>
+    <script src="./scripts/vendors/wnumb.js"></script>
+    <script src="./scripts/vendors/nouislider.min.js"></script>
+    <script src="./scripts/vendors/jquery.morelines.min.js"></script>
+    <script src="./scripts/vendors/photoswipe.min.js"></script>
+    <script src="./scripts/vendors/photoswipe-ui-default.min.js"></script>
+    <script src="./scripts/vendors/glightbox.min.js"></script>
+    <script src="./scripts/vendors/jBox.all.min.js"></script>
+    <script src="./scripts/vendors/select2.min.js"></script>
+    <script src="./scripts/vendors/jwplayer.js"></script>
+    <script src="./scripts/vendors/jwplayer.core.controls.js"></script>
+    <script src="./scripts/vendors/provider.hlsjs.js"></script>
+    <script src="./scripts/core/main.js"></script>
+    <script src="./scripts/home/carousel.js"></script>
+    <script src="./scripts/home/tabs.js"></script>
+    <script src="./scripts/home/refresh.js"></script>
+    <script src="./scripts/home/recent.js"></script>
+    <script src="./scripts/home/premieres.js"></script>
+</body>
+</html>
