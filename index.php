@@ -46,7 +46,7 @@ $heroMovies = array_slice($trendingMovies, 0, 10);
         }
         
         .logo-container img { 
-            width: 100px; 
+            width: 250px; 
             height: auto; 
             display: block; 
             object-fit: contain; 
