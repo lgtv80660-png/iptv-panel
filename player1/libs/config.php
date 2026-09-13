@@ -1,8 +1,8 @@
 <?php
 
-define('IP','URL_SERVER'); 
+define('IP','https://gmztv.vercel.app'); 
 define('TMDB_API_KEY', 'API_KEY_TMDB');
-define('LANGUAGE', 'fr-FR'); // es-ES (España), es-MX (Latino), en-US, etc.
+define('LANGUAGE', 'en-US'); // es-ES (España), es-MX (Latino), en-US, etc.
 define("NOME_IPTV", 'PLAYGO');
 
 $customChannelLogos = [];
