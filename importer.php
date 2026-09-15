@@ -575,8 +575,22 @@ if ($step === 3):
         }
     }
 
+    // =========================================================================
+    // NOTIFICATION AUTOMATIQUE : PURGE DU CACHE SUR VOTRE APP NEXT.JS (G-TV)
+    // =========================================================================
+    $revalidateUrl = "https://g-tv.onrender.com/api/revalidate?secret=mon_secret_super_securise";
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $revalidateUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $res = curl_exec($ch);
+    curl_close($ch);
+    // =========================================================================
+
     echo '<div style="margin-top:40px; padding:20px; background:#16a34a; color:#fff; border-radius:8px; text-align:center;">';
     echo '<h3><i class="fas fa-check-circle"></i> Importation terminée avec succès !</h3>';
+    echo '<p style="font-size:13px; opacity:0.9;"><i class="fas fa-sync"></i> Le cache de l\'application G-TV a été réinitialisé à distance.</p>';
     echo '<a href="admin.php" style="display:inline-block; margin-top:15px; padding:10px 20px; background:#fff; color:#000; text-decoration:none; border-radius:5px; font-weight:bold;">Retour au Panel</a>';
     echo '</div></body></html>';
 endif; 
