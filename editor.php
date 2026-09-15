@@ -3,16 +3,21 @@ require 'config.php';
 require 'db_migrations.php';
 ensure_panel_schema($pdo);
 
-// --- FONCTION DE NOTIFICATION AUTOMATIQUE POUR NEXT.JS ---
+// --- FONCTION DE NOTIFICATION AUTOMATIQUE SILENCIEUSE POUR NEXT.JS ---
 function notifyNextJsApp() {
     $revalidateUrl = "https://g-tv.onrender.com/api/revalidate?secret=mon_secret_super_securise";
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $revalidateUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_exec($ch);
-    curl_close($ch);
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $revalidateUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 2,
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_USERAGENT => 'G-Panel-Webhook/1.0',
+    ]);
+    @curl_exec($ch);
+    @curl_close($ch);
 }
 
 // --- RÉCUPÉRATION D'UN COMPTE CLIENT POUR LE LECTEUR VIDÉO ---
@@ -68,16 +73,16 @@ if (isset($_POST['update_category'])) {
     $stmt = $pdo->prepare("UPDATE categories SET category_name = ? WHERE category_id = ?");
     if($stmt->execute([$_POST['new_category_name'], $_POST['category_id']])) {
         notifyNextJsApp();
-        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Catégorie mise à jour et cache Next.js réinitialisé.</div>';
+        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Catégorie mise à jour avec succès.</div>';
     }
 }
 
-// UPDATE ENRICHI : MODIFICATION IN-PLACE DU FILM / SÉRIE (NOM, CATÉGORIE, ICON)
+// MODIFICATION IN-PLACE DES FILMS / ÉPISODES (NOM, CATÉGORIE, POSTER)
 if (isset($_POST['update_stream'])) {
     $stmt = $pdo->prepare("UPDATE streams SET stream_name = ?, category_id = ?, stream_icon = ? WHERE stream_id = ?");
     if($stmt->execute([$_POST['new_name'], $_POST['new_category'], $_POST['new_icon'], $_POST['stream_id']])) {
         notifyNextJsApp();
-        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Élément mis à jour avec succès et cache réinitialisé.</div>';
+        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Élément mis à jour avec succès.</div>';
     }
 }
 
@@ -85,7 +90,7 @@ if (isset($_POST['delete_stream'])) {
     $stmt = $pdo->prepare("DELETE FROM streams WHERE stream_id = ?");
     if($stmt->execute([$_POST['stream_id']])) {
         notifyNextJsApp();
-        $message = '<div class="alert alert-warning"><i class="fas fa-trash"></i> Flux supprimé définitivement et cache Next.js réinitialisé.</div>';
+        $message = '<div class="alert alert-warning"><i class="fas fa-trash"></i> Flux supprimé définitivement.</div>';
     }
 }
 
@@ -177,7 +182,6 @@ if ($mode === 'streams') {
         <div class="gp-section-label">Gestion</div><a href="editor.php" class="active"><i class="fas fa-folder-open"></i> Gestion des Bouquets</a>
         <a onclick="startBackgroundImport('importer.php')"><i class="fas fa-sync-alt"></i> Forcer l'importation</a>
         
-        <!-- BOUTON DE SYNCHRONISATION MANUELLE (PROXY VIA REVALIDATE_PROXY.PHP) -->
         <a href="#" onclick="purgeNextJsCache(); return false;" style="color: #00d2ff;">
             <i class="fas fa-bolt"></i> Synchro App G-TV
         </a>
@@ -319,7 +323,6 @@ if ($mode === 'streams') {
                                         <span class="btn-text" style="display:none;"><?= $s['visible'] ? 'Masquer' : 'Afficher' ?></span>
                                     </button>
                                     
-                                    <!-- BOUTON ÉDITER AVEC SUPPORT DU LOGO / STREAM_ICON -->
                                     <button class="btn btn-sm btn-outline-info me-1" onclick="editStream('<?= $s['stream_id'] ?>', '<?= addslashes(htmlspecialchars($s['stream_name'])) ?>', '<?= $s['category_id'] ?>', '<?= addslashes(htmlspecialchars($s['stream_icon'] ?? '')) ?>')">
                                         <i class="fas fa-edit"></i>
                                     </button>
@@ -443,7 +446,6 @@ if ($mode === 'streams') {
         const previewPass = encodeURIComponent('<?= addslashes($preview_pass) ?>');
         let hlsPlayer = null;
 
-        // PURGE DU CACHE VIA REVALIDATE_PROXY.PHP SANS BLOCAGE CORS
         function purgeNextJsCache() {
             if (!confirm("Voulez-vous réinitialiser le cache de l'application G-TV ?")) return;
             
