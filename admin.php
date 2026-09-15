@@ -229,7 +229,6 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
         <a href="#sources"><i class="fas fa-server"></i> Fournisseurs (Sources)</a>
         <a href="importer.php"><i class="fas fa-sync-alt"></i> Forcer l'importation</a>
 
-        <!-- BOUTON DE SYNCHRONISATION MANUELLE APP NEXT.JS -->
         <a href="#" onclick="purgeNextJsCache(); return false;" style="color: #00d2ff;">
             <i class="fas fa-bolt"></i> Synchro App G-TV
         </a>
@@ -578,18 +577,16 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
             new bootstrap.Modal(document.getElementById('editSourceModal')).show();
         }
 
-        // FONCTION DE SYNCHRONISATION MANUELLE APP G-TV
         function purgeNextJsCache() {
             if (!confirm("Voulez-vous réinitialiser le cache de l'application G-TV ?")) return;
             
-            fetch('https://g-tv.onrender.com/api/revalidate?secret=mon_secret_super_securise')
-                .then(res => res.json())
-                .then(data => {
-                    alert("✔ Cache de l'application G-TV réinitialisé avec succès !");
+            fetch('revalidate_proxy.php')
+                .then(res => {
+                    if(!res.ok) throw new Error("Erreur serveur proxy");
+                    return res.json();
                 })
-                .catch(err => {
-                    alert("❌ Erreur de communication avec l'application.");
-                });
+                .then(data => alert("✔ Cache de l'application G-TV réinitialisé avec succès !"))
+                .catch(err => alert("❌ Erreur de communication avec l'application."));
         }
     </script>
 <script src="assets/gpanel-ui.js"></script>
