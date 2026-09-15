@@ -3,6 +3,18 @@ require 'config.php';
 require 'db_migrations.php';
 ensure_panel_schema($pdo);
 
+// --- FONCTION DE NOTIFICATION AUTOMATIQUE POUR NEXT.JS ---
+function notifyNextJsApp() {
+    $revalidateUrl = "https://g-tv.onrender.com/api/revalidate?secret=mon_secret_super_securise";
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $revalidateUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_exec($ch);
+    curl_close($ch);
+}
+
 // --- RÉCUPÉRATION D'UN COMPTE CLIENT POUR LE LECTEUR VIDÉO ---
 $stmt_client = $pdo->query("SELECT username, password FROM clients WHERE active = 1 LIMIT 1");
 $preview_client = $stmt_client->fetch(PDO::FETCH_ASSOC);
@@ -19,11 +31,13 @@ if (isset($_POST['ajax_action'])) {
     if ($action === 'toggle_cat') {
         $stmt = $pdo->prepare("UPDATE categories SET visible = NOT visible WHERE category_id = ?");
         $stmt->execute([$_POST['id']]);
+        notifyNextJsApp();
         echo json_encode(['success' => true]); exit;
     }
     if ($action === 'toggle_stream') {
         $stmt = $pdo->prepare("UPDATE streams SET visible = NOT visible WHERE stream_id = ?");
         $stmt->execute([$_POST['id']]);
+        notifyNextJsApp();
         echo json_encode(['success' => true]); exit;
     }
     if ($action === 'bulk_toggle_cats') {
@@ -32,6 +46,7 @@ if (isset($_POST['ajax_action'])) {
         $inQuery = implode(',', array_fill(0, count($ids), '?'));
         $stmt = $pdo->prepare("UPDATE categories SET visible = ? WHERE category_id IN ($inQuery)");
         $stmt->execute(array_merge([$visible], $ids));
+        notifyNextJsApp();
         echo json_encode(['success' => true]); exit;
     }
     if ($action === 'bulk_toggle_streams') {
@@ -40,6 +55,7 @@ if (isset($_POST['ajax_action'])) {
         $inQuery = implode(',', array_fill(0, count($ids), '?'));
         $stmt = $pdo->prepare("UPDATE streams SET visible = ? WHERE stream_id IN ($inQuery)");
         $stmt->execute(array_merge([$visible], $ids));
+        notifyNextJsApp();
         echo json_encode(['success' => true]); exit;
     }
 }
@@ -51,19 +67,22 @@ $message = '';
 if (isset($_POST['update_category'])) {
     $stmt = $pdo->prepare("UPDATE categories SET category_name = ? WHERE category_id = ?");
     if($stmt->execute([$_POST['new_category_name'], $_POST['category_id']])) {
-        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Catégorie mise à jour.</div>';
+        notifyNextJsApp();
+        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Catégorie mise à jour et cache Next.js réinitialisé.</div>';
     }
 }
 if (isset($_POST['update_stream'])) {
     $stmt = $pdo->prepare("UPDATE streams SET stream_name = ?, category_id = ? WHERE stream_id = ?");
     if($stmt->execute([$_POST['new_name'], $_POST['new_category'], $_POST['stream_id']])) {
-        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Flux mis à jour.</div>';
+        notifyNextJsApp();
+        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Flux mis à jour et cache Next.js réinitialisé.</div>';
     }
 }
 if (isset($_POST['delete_stream'])) {
     $stmt = $pdo->prepare("DELETE FROM streams WHERE stream_id = ?");
     if($stmt->execute([$_POST['stream_id']])) {
-        $message = '<div class="alert alert-warning"><i class="fas fa-trash"></i> Flux supprimé définitivement.</div>';
+        notifyNextJsApp();
+        $message = '<div class="alert alert-warning"><i class="fas fa-trash"></i> Flux supprimé définitivement et cache Next.js réinitialisé.</div>';
     }
 }
 
@@ -154,6 +173,11 @@ if ($mode === 'streams') {
         <div class="gp-section-label">Navigation</div><a href="admin.php"><i class="fas fa-tachometer-alt"></i> Tableau de bord</a>
         <div class="gp-section-label">Gestion</div><a href="editor.php" class="active"><i class="fas fa-folder-open"></i> Gestion des Bouquets</a>
         <a onclick="startBackgroundImport('importer.php')"><i class="fas fa-sync-alt"></i> Forcer l'importation</a>
+        
+        <!-- BOUTON DE SYNCHRONISATION MANUELLE NEXT.JS -->
+        <a href="#" onclick="purgeNextJsCache(); return false;" style="color: #00d2ff;">
+            <i class="fas fa-bolt"></i> Synchro App G-TV
+        </a>
     </aside>
 
     <main class="main-content">
@@ -407,6 +431,15 @@ if ($mode === 'streams') {
         const previewUser = encodeURIComponent('<?= addslashes($preview_user) ?>');
         const previewPass = encodeURIComponent('<?= addslashes($preview_pass) ?>');
         let hlsPlayer = null;
+
+        function purgeNextJsCache() {
+            if (!confirm("Voulez-vous réinitialiser le cache de l'application G-TV ?")) return;
+            
+            fetch('https://g-tv.onrender.com/api/revalidate?secret=mon_secret_super_securise')
+                .then(res => res.json())
+                .then(data => alert("✔ Cache de l'application G-TV réinitialisé avec succès !"))
+                .catch(err => alert("❌ Erreur de communication avec l'application."));
+        }
 
         function editCategory(id, name) {
             document.getElementById('edit_cat_id').value = id;
