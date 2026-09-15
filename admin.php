@@ -228,6 +228,12 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
         <div class="gp-section-label">Gestion</div><a href="#clients"><i class="fas fa-users"></i> Gestion Clients</a>
         <a href="#sources"><i class="fas fa-server"></i> Fournisseurs (Sources)</a>
         <a href="importer.php"><i class="fas fa-sync-alt"></i> Forcer l'importation</a>
+
+        <!-- BOUTON DE SYNCHRONISATION MANUELLE APP NEXT.JS -->
+        <a href="#" onclick="purgeNextJsCache(); return false;" style="color: #00d2ff;">
+            <i class="fas fa-bolt"></i> Synchro App G-TV
+        </a>
+
         <a href="admin.php?logout=1" style="color: #ff4757; margin-top: 30px;"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
     </aside>
 
@@ -516,7 +522,6 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Utilisation dynamique de window.location.origin pour garantir que le domaine affiché est EXACTEMENT celui utilisé dans le navigateur
         const currentPath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
         const serverBaseUrl = window.location.origin + currentPath;
 
@@ -541,11 +546,9 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
         function showCredentials(username, password) {
             let m3uLink = `${serverBaseUrl}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus`;
             
-            // Mise à jour de la zone de texte dans le modal standard
             const box = document.getElementById('modal-link-box');
             if (box) box.innerText = m3uLink;
 
-            // Mise à jour des éventuels blocs créés dynamiquement par gpanel-ui.js
             document.querySelectorAll('.copy-box, .modal-body code').forEach(el => {
                 el.innerText = m3uLink;
             });
@@ -573,6 +576,20 @@ $fournisseurs = $pdo->query("SELECT * FROM fournisseurs ORDER BY id DESC")->fetc
             document.getElementById('edit_source_mac').value = mac || '';
             document.getElementById('edit_source_proxy').value = proxy || '';
             new bootstrap.Modal(document.getElementById('editSourceModal')).show();
+        }
+
+        // FONCTION DE SYNCHRONISATION MANUELLE APP G-TV
+        function purgeNextJsCache() {
+            if (!confirm("Voulez-vous réinitialiser le cache de l'application G-TV ?")) return;
+            
+            fetch('https://g-tv.onrender.com/api/revalidate?secret=mon_secret_super_securise')
+                .then(res => res.json())
+                .then(data => {
+                    alert("✔ Cache de l'application G-TV réinitialisé avec succès !");
+                })
+                .catch(err => {
+                    alert("❌ Erreur de communication avec l'application.");
+                });
         }
     </script>
 <script src="assets/gpanel-ui.js"></script>
