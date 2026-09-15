@@ -71,13 +71,16 @@ if (isset($_POST['update_category'])) {
         $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Catégorie mise à jour et cache Next.js réinitialisé.</div>';
     }
 }
+
+// UPDATE ENRICHI : MODIFICATION IN-PLACE DU FILM / SÉRIE (NOM, CATÉGORIE, ICON)
 if (isset($_POST['update_stream'])) {
-    $stmt = $pdo->prepare("UPDATE streams SET stream_name = ?, category_id = ? WHERE stream_id = ?");
-    if($stmt->execute([$_POST['new_name'], $_POST['new_category'], $_POST['stream_id']])) {
+    $stmt = $pdo->prepare("UPDATE streams SET stream_name = ?, category_id = ?, stream_icon = ? WHERE stream_id = ?");
+    if($stmt->execute([$_POST['new_name'], $_POST['new_category'], $_POST['new_icon'], $_POST['stream_id']])) {
         notifyNextJsApp();
-        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Flux mis à jour et cache Next.js réinitialisé.</div>';
+        $message = '<div class="alert alert-success"><i class="fas fa-check"></i> Élément mis à jour avec succès et cache réinitialisé.</div>';
     }
 }
+
 if (isset($_POST['delete_stream'])) {
     $stmt = $pdo->prepare("DELETE FROM streams WHERE stream_id = ?");
     if($stmt->execute([$_POST['stream_id']])) {
@@ -174,7 +177,7 @@ if ($mode === 'streams') {
         <div class="gp-section-label">Gestion</div><a href="editor.php" class="active"><i class="fas fa-folder-open"></i> Gestion des Bouquets</a>
         <a onclick="startBackgroundImport('importer.php')"><i class="fas fa-sync-alt"></i> Forcer l'importation</a>
         
-        <!-- BOUTON DE SYNCHRONISATION MANUELLE NEXT.JS -->
+        <!-- BOUTON DE SYNCHRONISATION MANUELLE (PROXY VIA REVALIDATE_PROXY.PHP) -->
         <a href="#" onclick="purgeNextJsCache(); return false;" style="color: #00d2ff;">
             <i class="fas fa-bolt"></i> Synchro App G-TV
         </a>
@@ -239,7 +242,7 @@ if ($mode === 'streams') {
                                 <th>Éléments</th>
                             <?php else: ?>
                                 <th>Logo</th>
-                                <th>Nom de la chaîne / Film</th>
+                                <th>Nom du Film / Chaîne</th>
                                 <th>Type</th>
                             <?php endif; ?>
                             <th class="text-end">Actions</th>
@@ -315,9 +318,12 @@ if ($mode === 'streams') {
                                         <i class="fas <?= $s['visible'] ? 'fa-eye-slash' : 'fa-eye' ?>"></i> 
                                         <span class="btn-text" style="display:none;"><?= $s['visible'] ? 'Masquer' : 'Afficher' ?></span>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-info me-1" onclick="editStream('<?= $s['stream_id'] ?>', '<?= addslashes(htmlspecialchars($s['stream_name'])) ?>', '<?= $s['category_id'] ?>')">
+                                    
+                                    <!-- BOUTON ÉDITER AVEC SUPPORT DU LOGO / STREAM_ICON -->
+                                    <button class="btn btn-sm btn-outline-info me-1" onclick="editStream('<?= $s['stream_id'] ?>', '<?= addslashes(htmlspecialchars($s['stream_name'])) ?>', '<?= $s['category_id'] ?>', '<?= addslashes(htmlspecialchars($s['stream_icon'] ?? '')) ?>')">
                                         <i class="fas fa-edit"></i>
                                     </button>
+                                    
                                     <form method="POST" style="display:inline;" onsubmit="return confirm('Supprimer définitivement ?');">
                                         <input type="hidden" name="stream_id" value="<?= $s['stream_id'] ?>">
                                         <button type="submit" name="delete_stream" class="btn btn-sm btn-outline-danger">
@@ -360,20 +366,25 @@ if ($mode === 'streams') {
       </div>
     </div>
 
+    <!-- Modal Modification Film / Épisode / Chaîne -->
     <?php if ($mode === 'streams'): ?>
     <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="background-color: var(--panel-bg); color: #fff; border: 1px solid var(--border-color);">
           <div class="modal-header" style="border-bottom: 1px solid var(--border-color);">
-            <h5 class="modal-title">Modifier le flux</h5>
+            <h5 class="modal-title">Modifier le Film / la Chaîne</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <form method="POST">
               <div class="modal-body">
                 <input type="hidden" name="stream_id" id="edit_id">
                 <div class="mb-3">
-                    <label class="form-label text-muted">Nouveau nom</label>
+                    <label class="form-label text-muted">Nouveau nom du film / épisode</label>
                     <input type="text" name="new_name" id="edit_name" class="form-control bg-dark text-white border-secondary" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted">URL Poster / Logo (Optionnel)</label>
+                    <input type="text" name="new_icon" id="edit_icon" class="form-control bg-dark text-white border-secondary" placeholder="https://image.tmdb.org/...">
                 </div>
                 <div class="mb-3">
                     <label class="form-label text-muted">Déplacer vers la catégorie</label>
@@ -386,7 +397,7 @@ if ($mode === 'streams') {
               </div>
               <div class="modal-footer" style="border-top: 1px solid var(--border-color);">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="submit" name="update_stream" class="btn btn-primary" style="background: var(--accent); border: none;">Enregistrer</button>
+                <button type="submit" name="update_stream" class="btn btn-primary" style="background: var(--accent); border: none;">Enregistrer les modifications</button>
               </div>
           </form>
         </div>
@@ -432,11 +443,15 @@ if ($mode === 'streams') {
         const previewPass = encodeURIComponent('<?= addslashes($preview_pass) ?>');
         let hlsPlayer = null;
 
+        // PURGE DU CACHE VIA REVALIDATE_PROXY.PHP SANS BLOCAGE CORS
         function purgeNextJsCache() {
             if (!confirm("Voulez-vous réinitialiser le cache de l'application G-TV ?")) return;
             
-            fetch('https://g-tv.onrender.com/api/revalidate?secret=mon_secret_super_securise')
-                .then(res => res.json())
+            fetch('revalidate_proxy.php')
+                .then(res => {
+                    if(!res.ok) throw new Error("Erreur serveur proxy");
+                    return res.json();
+                })
                 .then(data => alert("✔ Cache de l'application G-TV réinitialisé avec succès !"))
                 .catch(err => alert("❌ Erreur de communication avec l'application."));
         }
@@ -446,6 +461,17 @@ if ($mode === 'streams') {
             document.getElementById('edit_cat_name').value = name;
             var editCatModal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
             editCatModal.show();
+        }
+
+        function editStream(id, name, cat_id, icon = '') {
+            document.getElementById('edit_id').value = id;
+            document.getElementById('edit_name').value = name;
+            document.getElementById('edit_category').value = cat_id;
+            if (document.getElementById('edit_icon')) {
+                document.getElementById('edit_icon').value = icon;
+            }
+            var editModal = new bootstrap.Modal(document.getElementById('editModal'));
+            editModal.show();
         }
 
         function filterTable() {
@@ -531,14 +557,6 @@ if ($mode === 'streams') {
                 btn.querySelector('i').className = 'fas fa-eye';
                 if(btnText) btnText.innerText = 'Afficher';
             }
-        }
-
-        function editStream(id, name, cat_id) {
-            document.getElementById('edit_id').value = id;
-            document.getElementById('edit_name').value = name;
-            document.getElementById('edit_category').value = cat_id;
-            var editModal = new bootstrap.Modal(document.getElementById('editModal'));
-            editModal.show();
         }
 
         function previewStream(streamId, type, name, extension = '') {
