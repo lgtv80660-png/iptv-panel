@@ -3,7 +3,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "https://tvz.up.railway.app/$1"
+      "dest": "web-production-ccb27.up.railway.app/$1"
     }
   ]
 }
