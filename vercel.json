@@ -1,9 +1,1 @@
-{
-  "version": 2,
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "https://tvz.up.railway.app/$1"
-    }
-  ]
-}
+
