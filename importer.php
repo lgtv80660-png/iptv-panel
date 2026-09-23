@@ -77,9 +77,10 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'get_count') {
     @ini_set('display_errors', 0);
     header('Content-Type: application/json');
     
-    $fid = (int)$_POST['fournisseur_id'];
-    $kind = $_POST['kind'];
-    $cat_id = $_POST['cat_id'];
+    // CORRECTION : Ajout de valeurs par défaut (?? '') pour éviter l'erreur "Undefined variable"
+    $fid = (int)($_POST['fournisseur_id'] ?? 0);
+    $kind = $_POST['kind'] ?? '';
+    $cat_id = $_POST['cat_id'] ?? '';
     $token = $_POST['token'] ?? '';
     $path = $_POST['path'] ?? '/c/';
 
