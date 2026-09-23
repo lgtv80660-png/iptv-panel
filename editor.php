@@ -5,7 +5,7 @@ ensure_panel_schema($pdo);
 
 // --- FONCTION DE NOTIFICATION AUTOMATIQUE SILENCIEUSE POUR NEXT.JS ---
 function notifyNextJsApp() {
-    $revalidateUrl = "https://g-tv.onrender.com/api/revalidate?secret=mon_secret_super_securise";
+    $revalidateUrl = "https://gpanel.up.railway.app/revalidate?secret=mon_secret_super_securise";
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL => $revalidateUrl,
