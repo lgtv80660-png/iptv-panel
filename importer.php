@@ -579,7 +579,7 @@ if ($step === 3):
     // =========================================================================
     // NOTIFICATION AUTOMATIQUE : PURGE DU CACHE SUR VOTRE APP NEXT.JS (G-TV)
     // =========================================================================
-    $revalidateUrl = "https://gpanel.up.railway.app/revalidate?secret=mon_secret_super_securise";
+    $revalidateUrl = "https://gmztv.vercel.app/revalidate?secret=mon_secret_super_securise";
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $revalidateUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
