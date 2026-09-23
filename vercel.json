@@ -3,7 +3,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "https://web-production-ccb27.up.railway.app/$1"
+      "dest": "https://gpanel.up.railway.app/$1"
     }
   ]
 }
