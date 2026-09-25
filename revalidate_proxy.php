@@ -2,7 +2,7 @@
 // revalidate_proxy.php
 header('Content-Type: application/json');
 
-$revalidateUrl = "https://gmztv.vercel.app/revalidate?secret=mon_secret_super_securise";
+$revalidateUrl = "https://gtv-30-production.up.railway.app/revalidate?secret=mon_secret_super_securise";
 
 $ch = curl_init();
 curl_setopt_array($ch, [
