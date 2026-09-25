@@ -1,5 +1,5 @@
 <?php
-// V16 - Importation AJAX + Détection des filtres + Noms personnalisés
+// V16.1 - Importation AJAX + Détection des filtres + Noms personnalisés + BULK INSERT (Optimisation Vitesse)
 if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
@@ -46,8 +46,20 @@ function fetch_data_stream($url, $headers = []) {
     curl_close($ch);
     return $result;
 }
-function process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $insertStream) {
+
+// =========================================================
+// NOUVELLE FONCTION OPTIMISÉE AVEC BULK INSERT (BATCH 500)
+// =========================================================
+function process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap) {
+    if (empty($items)) return 0;
+    
     $count = 0;
+    $batchSize = 500; // Nombre de flux insérés par requête
+    $placeholders = [];
+    $values = [];
+    
+    $sqlBase = "INSERT INTO streams (fournisseur_id,stream_name,stream_icon,stream_type,category_id,direct_source,visible,container_extension,remote_stream_id,vod_plot,vod_cast,vod_director,vod_genre,vod_release_date,vod_rating,vod_rating_5based,vod_added,vod_backdrop,vod_trailer,vod_runtime) VALUES ";
+
     foreach ($items as $s) {
         if (!is_array($s)) continue;
         $plot=$cast=$director=$genre=$release=$rating=$rating5=$added=$backdrop=$trailer=$runtime=null;
@@ -63,9 +75,28 @@ function process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $
         if (!isset($catMap[$catRid]) || $name==='' || $source==='') continue;
         
         $name = mb_substr($name, 0, 900, 'UTF-8');
-        $insertStream->execute([$fid,$name,$icon,$kind,$catMap[$catRid],$source,1,$ext,$rid,$plot,$cast,$director,$genre,$release,$rating,$rating5,$added,$backdrop,$trailer,$runtime]);
+        
+        // Ajout des valeurs pour le batch
+        $placeholders[] = '(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
+        array_push($values, $fid, $name, $icon, $kind, $catMap[$catRid], $source, 1, $ext, $rid, $plot, $cast, $director, $genre, $release, $rating, $rating5, $added, $backdrop, $trailer, $runtime);
         $count++;
+
+        // Si le lot atteint la taille max (500), on exécute l'insertion
+        if (count($placeholders) >= $batchSize) {
+            $stmt = $pdo->prepare($sqlBase . implode(',', $placeholders));
+            $stmt->execute($values);
+            // Réinitialisation des tableaux pour le prochain lot
+            $placeholders = [];
+            $values = [];
+        }
     }
+    
+    // Insertion des éléments restants qui n'auraient pas atteint 500
+    if (!empty($placeholders)) {
+        $stmt = $pdo->prepare($sqlBase . implode(',', $placeholders));
+        $stmt->execute($values);
+    }
+    
     return $count;
 }
 
@@ -77,7 +108,6 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'get_count') {
     @ini_set('display_errors', 0);
     header('Content-Type: application/json');
     
-    // CORRECTION : Ajout de valeurs par défaut (?? '') pour éviter l'erreur "Undefined variable"
     $fid = (int)($_POST['fournisseur_id'] ?? 0);
     $kind = $_POST['kind'] ?? '';
     $cat_id = $_POST['cat_id'] ?? '';
@@ -177,7 +207,7 @@ if (!$selectedProvider):
   <div class="gp-import-top">
     <div class="gp-import-brand">
       <img src="assets/g-panel-logo.png" alt="G-PANEL">
-      <div><div class="gp-import-title">Importation Interactive (V16)</div></div>
+      <div><div class="gp-import-title">Importation Interactive (V16.1)</div></div>
     </div>
     <a class="btn btn-outline-light" href="admin.php"><i class="fas fa-arrow-left"></i> Retour</a>
   </div>
@@ -208,7 +238,6 @@ $js_token = ''; $js_path = '/c/';
 // ÉTAPE 2 : AFFICHAGE & AJAX COUNTING
 // ==========================================
 if ($step === 2) {
-    // 1. Récupérer les catégories existantes avec leur nom personnalisé
     $stmtExisting = $pdo->prepare("SELECT remote_category_id, category_name, content_type FROM categories WHERE fournisseur_id = ? AND visible = 1");
     $stmtExisting->execute([$fid]);
     $alreadyImported = ['live'=>[], 'movie'=>[], 'series'=>[]];
@@ -435,8 +464,7 @@ if ($step === 3):
     echo '<h2><i class="fas fa-database text-info"></i> Importation SQL en cours pour '.h($nom).'</h2><hr style="border-color:#2d3240;">'; flush();
 
     $insertCat = $pdo->prepare("INSERT INTO categories (category_name,parent_id,visible,fournisseur_id,remote_category_id,content_type) VALUES (?,0,1,?,?,?)");
-    $insertStream = $pdo->prepare("INSERT INTO streams (fournisseur_id,stream_name,stream_icon,stream_type,category_id,direct_source,visible,container_extension,remote_stream_id,vod_plot,vod_cast,vod_director,vod_genre,vod_release_date,vod_rating,vod_rating_5based,vod_added,vod_backdrop,vod_trailer,vod_runtime) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-
+    
     $remoteCats = ['live'=>[], 'movie'=>[], 'series'=>[]];
     $token = ''; $hs = []; $portal = ''; $mac = ''; $proxy = ''; $api = '';
 
@@ -477,13 +505,11 @@ if ($step === 3):
     foreach (['live', 'movie', 'series'] as $kind) {
         if (empty($selectedCats[$kind])) continue;
 
-        // CORRECTION ICI: Utilisation des accolades pour isoler la variable de l'ellipse
         echo "<h3 style='color:#00d2ff; margin-top:30px;'>Traitement {$kind}…</h3>"; flush();
         
         try {
             $pdo->beginTransaction();
 
-            // Récupérer les noms personnalisés existants avant suppression pour les préserver
             $stmtCustom = $pdo->prepare("SELECT remote_category_id, category_name FROM categories WHERE fournisseur_id = ? AND content_type = ?");
             $stmtCustom->execute([$fid, $kind]);
             $existingCustomNames = $stmtCustom->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -499,7 +525,6 @@ if ($step === 3):
                 if ($rid === '') $rid = $name;
 
                 if (in_array($rid, $selectedCats[$kind])) {
-                    // Conserver le nom personnalisé s'il a été édité, sinon utiliser le nom du fournisseur
                     $display = isset($existingCustomNames[$rid]) ? $existingCustomNames[$rid] : mb_substr('['.$nom.'] '.$name, 0, 250, 'UTF-8');
                     $insertCat->execute([$display, $fid, $rid, $kind]);
                     $catMap[$rid] = (int)$pdo->lastInsertId();
@@ -508,6 +533,7 @@ if ($step === 3):
             
             $total_inserted = 0;
 
+            // Appel de la fonction sans passer $insertStream
             if ($type === 'xtream') {
                 $action = ($kind==='live') ? 'get_live_streams' : (($kind==='movie') ? 'get_vod_streams' : 'get_series');
                 echo "<p style='color:#8b92a5;'>Téléchargement API Xtream...</p>"; flush();
@@ -515,7 +541,7 @@ if ($step === 3):
                 if ($resp) {
                     $items = json_decode($resp, true);
                     if (is_array($items)) {
-                        $total_inserted += process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $insertStream);
+                        $total_inserted += process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap);
                     }
                 }
             } elseif ($type === 'm3u') {
@@ -533,13 +559,13 @@ if ($step === 3):
                         $current['url']=$line; $items[] = $current; $current=null;
                     }
                 }
-                $total_inserted += process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $insertStream);
+                $total_inserted += process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap);
                 
             } elseif ($type === 'stalker') {
                 if ($kind === 'live') {
                     $res = stalker_load($portal, $mac, $token, 'itv', 'get_all_channels', [], $hs['path'], $proxy);
                     if ($res['ok']) {
-                        $total_inserted += process_and_insert_streams($pdo, $fid, $kind, $type, stalker_js_list($res['data']), $catMap, $insertStream);
+                        $total_inserted += process_and_insert_streams($pdo, $fid, $kind, $type, stalker_js_list($res['data']), $catMap);
                     }
                 } else {
                     $stalker_type = ($kind === 'movie') ? 'vod' : 'series';
@@ -558,7 +584,7 @@ if ($step === 3):
                             
                             if (empty($items)) break;
                             
-                            $inserted = process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap, $insertStream);
+                            $inserted = process_and_insert_streams($pdo, $fid, $kind, $type, $items, $catMap);
                             $total_inserted += $inserted;
                             echo "<script>window.scrollTo(0,document.body.scrollHeight);</script>"; flush();
                             
@@ -577,9 +603,6 @@ if ($step === 3):
         }
     }
 
-    // =========================================================================
-    // NOTIFICATION AUTOMATIQUE : PURGE DU CACHE SUR VOTRE APP NEXT.JS (G-TV)
-    // =========================================================================
     $revalidateUrl = "https://gmztv.vercel.app/revalidate?secret=mon_secret_super_securise";
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $revalidateUrl);
@@ -588,7 +611,6 @@ if ($step === 3):
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     $res = curl_exec($ch);
     curl_close($ch);
-    // =========================================================================
 
     echo '<div style="margin-top:40px; padding:20px; background:#16a34a; color:#fff; border-radius:8px; text-align:center;">';
     echo '<h3><i class="fas fa-check-circle"></i> Importation terminée avec succès !</h3>';
