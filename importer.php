@@ -477,7 +477,8 @@ if ($step === 3):
     foreach (['live', 'movie', 'series'] as $kind) {
         if (empty($selectedCats[$kind])) continue;
 
-        echo "<h3 style='color:#00d2ff; margin-top:30px;'>Traitement $kind…</h3>"; flush();
+        // CORRECTION ICI: Utilisation des accolades pour isoler la variable de l'ellipse
+        echo "<h3 style='color:#00d2ff; margin-top:30px;'>Traitement {$kind}…</h3>"; flush();
         
         try {
             $pdo->beginTransaction();
