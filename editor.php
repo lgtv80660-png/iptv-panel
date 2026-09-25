@@ -5,7 +5,7 @@ ensure_panel_schema($pdo);
 
 // --- FONCTION DE NOTIFICATION AUTOMATIQUE SILENCIEUSE POUR NEXT.JS ---
 function notifyNextJsApp() {
-    $revalidateUrl = "https://gmztv.vercel.app/revalidate?secret=mon_secret_super_securise";
+    $revalidateUrl = "https://gtv-30-production.up.railway.app/revalidate?secret=mon_secret_super_securise";
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL => $revalidateUrl,
