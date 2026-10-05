@@ -2,7 +2,7 @@
 // revalidate_proxy.php
 header('Content-Type: application/json');
 
-$revalidateUrl = "https://gtv-30-production.up.railway.app/api/revalidate?secret=mon_secret_super_securise";
+$revalidateUrl = "https://gtv40-production.up.railway.app/api/revalidate?secret=mon_secret_super_securise";
 
 $ch = curl_init();
 curl_setopt_array($ch, [
