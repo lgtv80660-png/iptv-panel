@@ -603,7 +603,7 @@ if ($step === 3):
         }
     }
 
-    $revalidateUrl = "https://gtv-30-production.up.railway.app/api/revalidate?secret=mon_secret_super_securise";
+    $revalidateUrl = "https://gtv40-production.up.railway.app/api/revalidate?secret=mon_secret_super_securise";
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $revalidateUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
